@@ -78,10 +78,10 @@ void
 Transfer_function::add(unsigned data_value, glm::vec4 color)
 {
   helper::clamp(data_value, 0u, 255u);
-  helper::clamp(color.r, 1.0f, 1.0f);
-  helper::clamp(color.g, 1.0f, 1.0f);
-  helper::clamp(color.b, 1.0f, 1.0f);
-  helper::clamp(color.a, 1.0f, 1.0f);
+  helper::clamp(color.r, 0.0f, 1.0f);
+  helper::clamp(color.g, 0.0f, 1.0f);
+  helper::clamp(color.b, 0.0f, 1.0f);
+  helper::clamp(color.a, 0.0f, 1.0f);
 
   m_piecewise_container.insert(element_type(data_value, color));
 }
