@@ -10,13 +10,11 @@ sudo apt-get install libxrandr-dev
 
 First compilation
 =================
-git clone https://github.com/vrsys/fensterchen-vis
-cd fensterchen-vis
-mkdir build
-cd build
+git clone https://github.com/vrsys/exercise-scivis
+cd exercise-scivis
+mkdir cmake_out
+cd cmake_out
 ccmake ..
 c (configure)
 g (generate)
-cd build/Release
-./MyVolumeRaycaster
-
+Execute Makefile
