@@ -72,6 +72,8 @@ public:
   glm::ivec2 windowSize() const;
   float getTime() const;
 
+  GLFWwindow* getGLFWwindow() { return m_window; }
+
 private:
   GLFWwindow* m_window;
   glm::ivec2 m_size;

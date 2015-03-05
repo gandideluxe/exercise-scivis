@@ -44,6 +44,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/${GLFW_DIRECTORY}/inclu
 set(GLM_DIRECTORY glm-0.9.5.3)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/${GLM_DIRECTORY})
 
+set(GLFW_DIRECTORY glfw-3.0.3)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/${GLFW_DIRECTORY}/include)
+
+set(STBIMAGE_DIRECTORY stb-image)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/${STBIMAGE_DIRECTORY})
+
 ################################
 # Add libraries to executables
 
