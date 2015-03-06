@@ -487,6 +487,100 @@ void showGUI(){
 
         ImGui::SliderFloat("sampling step", &g_sampling_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
     }
+
+    if (ImGui::CollapsingHeader("Save/Load", 0, true, true))
+    {
+
+        ImGui::Text("Transferfunctions");
+        bool load_tf_1 = false;
+        bool load_tf_2 = false;
+        bool load_tf_3 = false;
+        bool load_tf_4 = false;
+        bool load_tf_5 = false;
+        bool load_tf_6 = false;
+        bool save_tf_1 = false;
+        bool save_tf_2 = false;
+        bool save_tf_3 = false;
+        bool save_tf_4 = false;
+        bool save_tf_5 = false;
+        bool save_tf_6 = false;
+
+        save_tf_1 ^= ImGui::Button("Save TF1"); ImGui::SameLine();
+        load_tf_1 ^= ImGui::Button("Load TF1"); 
+        save_tf_2 ^= ImGui::Button("Save TF2"); ImGui::SameLine();
+        load_tf_2 ^= ImGui::Button("Load TF2");
+        save_tf_3 ^= ImGui::Button("Save TF3"); ImGui::SameLine();
+        load_tf_3 ^= ImGui::Button("Load TF3");
+        save_tf_4 ^= ImGui::Button("Save TF4"); ImGui::SameLine();
+        load_tf_4 ^= ImGui::Button("Load TF4");
+        save_tf_5 ^= ImGui::Button("Save TF5"); ImGui::SameLine();
+        load_tf_5 ^= ImGui::Button("Load TF5");
+        save_tf_6 ^= ImGui::Button("Save TF6"); ImGui::SameLine();
+        load_tf_6 ^= ImGui::Button("Load TF6");
+        
+        if (save_tf_1 || save_tf_2 || save_tf_3 || save_tf_4 || save_tf_5 || save_tf_6){
+            auto con = g_transfer_fun.get_piecewise_container();
+            std::vector<Transfer_function::element_type> save_vect;
+            
+            for (auto c = con.begin(); c != con.end(); ++c)
+            {
+                save_vect.push_back(*c);
+            }
+
+            std::ofstream tf_file;
+
+            if (save_tf_1){ tf_file.open("TF1", std::ios::out | std::ofstream::binary); }
+            if (save_tf_2){ tf_file.open("TF2", std::ios::out | std::ofstream::binary); }
+            if (save_tf_3){ tf_file.open("TF3", std::ios::out | std::ofstream::binary); }
+            if (save_tf_4){ tf_file.open("TF4", std::ios::out | std::ofstream::binary); }
+            if (save_tf_5){ tf_file.open("TF5", std::ios::out | std::ofstream::binary); }
+            if (save_tf_6){ tf_file.open("TF6", std::ios::out | std::ofstream::binary); }
+            
+            //std::copy(save_vect.begin(), save_vect.end(), std::ostreambuf_iterator<char>(tf_file));
+            tf_file.close();
+
+        }
+
+        if (load_tf_1 || load_tf_2 || load_tf_3 || load_tf_4 || load_tf_5 || load_tf_6){
+            auto con = g_transfer_fun.get_piecewise_container();
+            std::vector<Transfer_function::element_type> load_vect;
+
+            std::ifstream tf_file;
+                        
+            if (load_tf_1){ tf_file.open("TF1", std::ios::in | std::ifstream::binary); }
+            if (load_tf_2){ tf_file.open("TF2", std::ios::in | std::ifstream::binary); }
+            if (load_tf_3){ tf_file.open("TF3", std::ios::in | std::ifstream::binary); }
+            if (load_tf_4){ tf_file.open("TF4", std::ios::in | std::ifstream::binary); }
+            if (load_tf_5){ tf_file.open("TF5", std::ios::in | std::ifstream::binary); }
+            if (load_tf_6){ tf_file.open("TF6", std::ios::in | std::ifstream::binary); }
+
+            //std::istreambuf_iterator<Transfer_function::element_type> iter();
+            //std::copy(iter.begin(), iter.end(), std::back_inserter(load_vect));
+
+            tf_file.close();
+
+
+        }
+
+
+
+
+        if (load_tf_1 || load_tf_2 || load_tf_3 || load_tf_4 || load_tf_5 || save_tf_6){
+            g_transfer_fun.get_piecewise_container();
+        }
+
+        bool load_volume_1 = false;
+        bool load_volume_2 = false;
+        bool load_volume_3 = false;
+
+        ImGui::Text("Volumes");
+        load_volume_1 ^= ImGui::Button("Load Volume 1");
+        load_volume_2 ^= ImGui::Button("Load Volume 2");
+        load_volume_3 ^= ImGui::Button("Load Volume 3");
+
+        
+
+    }
     
     if (ImGui::CollapsingHeader("Shader", 0, true, true))
     {
