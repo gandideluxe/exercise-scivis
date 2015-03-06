@@ -55,7 +55,7 @@ const T clamp(const T val, const T min, const T max)
 template<typename T>
 const T weight(const float w, const T a, const T b)
 {    
-    return ((1.0 - w) * a + w * b);
+    return ((1.0f - w) * a + w * b);
 }
 
 } // namespace helper
@@ -108,8 +108,8 @@ image_data_type Transfer_function::get_RGBA_transfer_function_buffer() const
     color_b = e_color;
 
     unsigned data_value_d = data_value_b - data_value_f;
-    float step_size = 1.0 / static_cast<float>(data_value_d);
-    float step = 0.0;
+    float step_size = 1.0f / static_cast<float>(data_value_d);
+    float step = 0.0f;
         
     for (unsigned i = data_value_f; i != data_value_b; ++i) {
 
@@ -130,7 +130,7 @@ image_data_type Transfer_function::get_RGBA_transfer_function_buffer() const
 
   if (data_value_f != data_value_b) {
     unsigned data_value_d = data_value_b - data_value_f;
-    float step_size = 1.0 / static_cast<float>(data_value_d);
+    float step_size = 1.0f / static_cast<float>(data_value_d);
     float step = 0.0;
     
     for (unsigned i = data_value_f; i != data_value_b; ++i) {
@@ -283,7 +283,7 @@ void Transfer_function::update_and_draw()
         glm::value_ptr(view));
     
     glBindVertexArray(m_vao);
-    glDrawArrays(GL_LINES, 0, m_piecewise_container.size() * 2 * 6);
+    glDrawArrays(GL_LINES, 0, (GLsizei)m_piecewise_container.size() * 2 * 6);
     glBindVertexArray(0);
 
     glUseProgram(0);

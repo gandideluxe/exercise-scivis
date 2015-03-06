@@ -6072,14 +6072,14 @@ void ImDrawList::ArcTo(const ImVec2& centre, float radius, float amin, float ama
 
 void ImDrawList::Fill(ImU32 col)
 {
-    AddConvexPolyFilled(&path[0], path.size(), col);
+    AddConvexPolyFilled(&path[0], (int)path.size(), col);
     ClearPath();
 }
 
 void ImDrawList::Stroke(ImU32 col, bool closed)
 {
     // Remove duplicates
-    AddPolyline(&path[0], path.size(), col, closed);
+    AddPolyline(&path[0], (int)path.size(), col, closed);
     ClearPath();
 }
 
@@ -7821,7 +7821,7 @@ struct ExampleAppConsole
                 if (data->EventKey == ImGuiKey_UpArrow)
                 {
                     if (HistoryPos == -1)
-                        HistoryPos = History.size() - 1;
+                        HistoryPos = (int)History.size() - 1;
                     else if (HistoryPos > 0)
                         HistoryPos--;
                 }
@@ -7837,7 +7837,7 @@ struct ExampleAppConsole
                 {
                     ImFormatString(data->Buf, data->BufSize, "%s", (HistoryPos >= 0) ? History[HistoryPos] : "");
                     data->BufDirty = true;
-                    data->CursorPos = data->SelectionStart = data->SelectionEnd = strlen(data->Buf);
+                    data->CursorPos = data->SelectionStart = data->SelectionEnd = (int)strlen(data->Buf);
                 }
             }
         }

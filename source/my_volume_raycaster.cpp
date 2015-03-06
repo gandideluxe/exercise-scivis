@@ -116,6 +116,8 @@ std::string g_error_message;
 bool g_reload_shader_error = false;
 
 Transfer_function g_transfer_fun;
+GLuint g_transfer_texture;
+bool g_transfer_dirty = true;
 
 // imgui variables
 static bool g_show_gui = true;
@@ -155,6 +157,7 @@ struct Manipulator
 
   glm::mat4 matrix()
   {
+     m_turntable.rotate(m_slidelastMouse, m_slideMouse);
     return m_turntable.matrix();
   }
 
@@ -443,27 +446,44 @@ void showGUI(){
 
     if (ImGui::CollapsingHeader("Render Options"))
     {
-        ImVector<float> R;
-        ImVector<float> G;
-        ImVector<float> B;
-        ImVector<float> A;
+        static unsigned byte_size = 255;
 
-        auto color_con = g_transfer_fun.get_piecewise_container();
+        static ImVector<float> R; if (R.empty()){ R.resize(byte_size); }
+        static ImVector<float> G; if (G.empty()){ G.resize(byte_size); }
+        static ImVector<float> B; if (B.empty()){ B.resize(byte_size); }
+        static ImVector<float> A; if (A.empty()){ A.resize(byte_size); }
 
-        //ImGui::PlotLines("Transfer Function R", &R.front(), (int)R.size(), (int)0, "", 0.0, 1.0, ImVec2(0, 70));
-        //ImGui::PlotLines("Transfer Function G", &G.front(), (int)G.size(), (int)0, "", 0.0, 1.0, ImVec2(0, 70));
-        //ImGui::PlotLines("Transfer Function B", &B.front(), (int)B.size(), (int)0, "", 0.0, 1.0, ImVec2(0, 70));
-        //ImGui::PlotLines("Transfer Function A", &A.front(), (int)A.size(), (int)0, "", 0.0, 1.0, ImVec2(0, 70));
+        if (g_transfer_dirty){
+            auto color_con = g_transfer_fun.get_RGBA_transfer_function_buffer();
+
+            for (auto i = 0; i != byte_size; ++i){
+                R[i] = color_con[i * 4];
+                G[i] = color_con[i * 4 + 1];
+                B[i] = color_con[i * 4 + 2];
+                A[i] = color_con[i * 4 + 3];                
+            }
+        }
+
+        ImGui::PlotLines("R", &R.front(), (int)R.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70));
+        ImGui::PlotLines("G", &G.front(), (int)G.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70));
+        ImGui::PlotLines("B", &B.front(), (int)B.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70));
+        ImGui::PlotLines("A", &A.front(), (int)A.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70));
         
-        
+        static int data_value = 0;
+        ImGui::SliderInt("Data Value", &data_value, 0, 255);
         static float col[4] = { 0.4f, 0.7f, 0.0f, 0.5f };        
         ImGui::ColorEdit4("color", col);
-        static int data_value = 0;
-
-        ImGui::SliderInt("Data Value", &data_value, 0, 255);
-
-        bool add_entry_to_tf;
+        
+        bool add_entry_to_tf = false;
         add_entry_to_tf ^= ImGui::Button("Add entry to transfer function");
+
+        if (add_entry_to_tf){
+            g_transfer_fun.add((unsigned)data_value, glm::vec4(col[0], col[1], col[2], col[3]));
+            g_transfer_dirty = true;
+        }
+        else{
+            g_transfer_dirty = false;
+        }
 
         ImGui::SliderFloat("sampling step", &g_sampling_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
     }
@@ -562,7 +582,9 @@ int main(int argc, char* argv[])
 
   // init and upload transfer function texture
   glActiveTexture(GL_TEXTURE1);
-  createTexture2D(255u, 1u, (char*)&g_transfer_fun.get_RGBA_transfer_function_buffer()[0]);
+  g_transfer_texture = createTexture2D(255u, 1u, (char*)&g_transfer_fun.get_RGBA_transfer_function_buffer()[0]);
+
+  
 
   // setting up proxy geometry
   Cube cube(glm::vec3(0.0, 0.0, 0.0), max_volume_bounds);
