@@ -37,5 +37,4 @@ GLuint createTexture2D(unsigned const& width, unsigned const& height,
 GLuint createTexture3D(unsigned const& width, unsigned const& height,
     unsigned const& depth, unsigned const channel_size,
     unsigned const channel_count, const char* data);
-
 #endif // #ifndef UTILS_HPP

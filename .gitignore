@@ -23,3 +23,5 @@
 build
 cmake_out
 /external/imgui
+/framework/imgui_impl.hpp
+/framework/imgui_impl.cpp

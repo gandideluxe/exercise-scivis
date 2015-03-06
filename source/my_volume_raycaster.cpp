@@ -15,6 +15,7 @@
 #include "fensterchen.hpp"
 #include <string>
 #include <iostream>
+#include <sstream>      // std::stringstream
 #include <fstream>
 #include <algorithm>
 #include <stdexcept>
@@ -36,20 +37,57 @@
 #include <imgui.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>        // stb_image.h for PNG loading
+#define OFFSETOF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
+
+//-----------------------------------------------------------------------------
+// Helpers
+//-----------------------------------------------------------------------------
+
+#define IM_ARRAYSIZE(_ARR)          ((int)(sizeof(_ARR)/sizeof(*_ARR)))
+
+#undef PI
+const float PI = 3.14159265358979323846f;
+
+#ifdef INT_MAX
+#define IM_INT_MAX INT_MAX
+#else
+#define IM_INT_MAX 2147483647
+#endif
+
+// Play it nice with Windows users. Notepad in 2014 still doesn't display text data with Unix-style \n.
+#ifdef _MSC_VER
+#define STR_NEWLINE "\r\n"
+#else
+#define STR_NEWLINE "\n"
+#endif
 
 const std::string g_file_vertex_shader("../../../source/shader/volume.vert");
 const std::string g_file_fragment_shader("../../../source/shader/volume.frag");
 
+const std::string g_GUI_file_vertex_shader("../../../source/shader/pass_through_GUI.vert");
+const std::string g_GUI_file_fragment_shader("../../../source/shader/pass_through_GUI.frag");
+
 GLuint loadShaders(std::string const& vs, std::string const& fs)
+{
+    std::string v = readFile(vs);
+    std::string f = readFile(fs);
+    return createProgram(v, f);
+}
+
+GLuint loadShaders(std::string const& vs, std::string const& fs, const int task_nbr)
 {
   std::string v = readFile(vs);
   std::string f = readFile(fs);
+
+  std::stringstream ss;
+  ss << task_nbr;
+
+  auto index = f.find("#define TASK");
+  f.replace(index + 13, 3, ss.str());
+
   return createProgram(v,f);
 }
 
-bool g_reload_shader_pressed                = false;
-bool g_show_transfer_function               = false;
-bool g_show_transfer_function_pressed       = false;
 Turntable  g_turntable;
 
 ///SETUP VOLUME RAYCASTER HERE
@@ -67,20 +105,42 @@ glm::vec3   g_light_color                   = glm::vec3(1.0f, 1.0f, 1.0f);
 
 // set backgorund color here
 //glm::vec3   g_background_color = glm::vec3(1.0f, 1.0f, 1.0f); //white
-glm::vec3   g_background_color = glm::vec3(0.0f, 0.0f, 0.0f);   //black
+glm::vec3   g_background_color = glm::vec3(0.08f, 0.08f, 0.08f);   //grey
 
-glm::ivec2  g_window_res                    = glm::ivec2(600, 600);
+glm::ivec2  g_window_res                    = glm::ivec2(1600, 800);
 Window g_win(g_window_res);
 
+// Volume Rendering GLSL Program
+GLuint g_volume_program(0);
+std::string g_error_message;
+bool g_reload_shader_error = false;
+
+Transfer_function g_transfer_fun;
+
 // imgui variables
+static bool g_show_gui = true;
+
+GLuint g_color_tex = 0;
+
 static GLuint fontTex;
 static bool mousePressed[2] = { false, false };
 
-static int shader_handle, vert_handle, frag_handle;
+static int g_gui_program, vert_handle, frag_handle;
 static int texture_location, ortho_location;
 static int position_location, uv_location, colour_location;
 static size_t vbo_max_size = 20000;
 static unsigned int vbo_handle, vao_handle;
+
+//imgui values
+bool g_over_gui = false;
+bool g_reload_shader = false;
+bool g_reload_shader_pressed = false;
+bool g_show_transfer_function = false;
+bool g_show_transfer_function_pressed = false;
+
+int g_task_chosen = 31;
+int g_task_chosen_old = g_task_chosen;
+
 
 struct Manipulator
 {
@@ -91,43 +151,51 @@ struct Manipulator
     , m_lastMouse(0.0f,0.0f)
     {}
 
+  glm::mat4 matrix()
+  {
+    return m_turntable.matrix();
+  }
+
   glm::mat4 matrix(Window const& g_win)
   {
-    m_mouse = g_win.mousePosition();
-    if (g_win.isButtonPressed(Window::MOUSE_BUTTON_LEFT)) {
-      if (!m_mouse_button_pressed[0]) {
-        m_mouse_button_pressed[0] = 1;
+      m_mouse = g_win.mousePosition();
+      if (g_win.isButtonPressed(Window::MOUSE_BUTTON_LEFT)) {
+          if (!m_mouse_button_pressed[0]) {
+              m_mouse_button_pressed[0] = 1;
+          }
+          m_turntable.rotate(m_lastMouse, m_mouse);
+          m_slideMouse = m_mouse;
+          m_slidelastMouse = m_lastMouse;
       }
-      m_turntable.rotate(m_lastMouse, m_mouse);
-      m_slideMouse = m_mouse;
-      m_slidelastMouse = m_lastMouse;
-    } else {
-      m_mouse_button_pressed[0] = 0;
-      m_turntable.rotate(m_slidelastMouse, m_slideMouse);
-      //m_slideMouse *= 0.99f;
-      //m_slidelastMouse *= 0.99f;
-    }
-
-    if (g_win.isButtonPressed(Window::MOUSE_BUTTON_MIDDLE)) {
-      if (!m_mouse_button_pressed[1]) {
-        m_mouse_button_pressed[1] = 1;
+      else {
+          m_mouse_button_pressed[0] = 0;
+          m_turntable.rotate(m_slidelastMouse, m_slideMouse);
+          //m_slideMouse *= 0.99f;
+          //m_slidelastMouse *= 0.99f;
       }
-      m_turntable.pan(m_lastMouse, m_mouse);
-    } else {
-      m_mouse_button_pressed[1] = 0;
-    }
 
-    if (g_win.isButtonPressed(Window::MOUSE_BUTTON_RIGHT)) {
-      if (!m_mouse_button_pressed[2]) {
-        m_mouse_button_pressed[2] = 1;
+      if (g_win.isButtonPressed(Window::MOUSE_BUTTON_MIDDLE)) {
+          if (!m_mouse_button_pressed[1]) {
+              m_mouse_button_pressed[1] = 1;
+          }
+          m_turntable.pan(m_lastMouse, m_mouse);
       }
-      m_turntable.zoom(m_lastMouse, m_mouse);
-    } else {
-      m_mouse_button_pressed[2] = 0;
-    }
+      else {
+          m_mouse_button_pressed[1] = 0;
+      }
 
-    m_lastMouse = m_mouse;    
-    return m_turntable.matrix();
+      if (g_win.isButtonPressed(Window::MOUSE_BUTTON_RIGHT)) {
+          if (!m_mouse_button_pressed[2]) {
+              m_mouse_button_pressed[2] = 1;
+          }
+          m_turntable.zoom(m_lastMouse, m_mouse);
+      }
+      else {
+          m_mouse_button_pressed[2] = 0;
+      }
+
+      m_lastMouse = m_mouse;
+      return m_turntable.matrix();
   }
 
 private:
@@ -170,7 +238,7 @@ static void ImImpl_RenderDrawLists(ImDrawList** const cmd_lists, int cmd_lists_c
         { 0.0f, 0.0f, -1.0f, 0.0f },
         { -1.0f, 1.0f, 0.0f, 1.0f },
     };
-    glUseProgram(shader_handle);
+    glUseProgram(g_gui_program);
     glUniform1i(texture_location, 0);
     glUniformMatrix4fv(ortho_location, 1, GL_FALSE, &ortho_projection[0][0]);
 
@@ -272,6 +340,38 @@ void InitImGui()
     void* tex_data = stbi_load_from_memory((const unsigned char*)png_data, (int)png_size, &tex_x, &tex_y, &tex_comp, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex_x, tex_y, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex_data);
     stbi_image_free(tex_data);
+    
+    
+    try {
+        g_gui_program = loadShaders(g_GUI_file_vertex_shader, g_GUI_file_fragment_shader);
+    }
+    catch (std::logic_error& e) {
+        std::cerr << e.what() << std::endl;
+    }
+
+    texture_location = glGetUniformLocation(g_gui_program, "Texture");
+    ortho_location = glGetUniformLocation(g_gui_program, "ortho");
+    position_location = glGetAttribLocation(g_gui_program, "Position");
+    uv_location = glGetAttribLocation(g_gui_program, "UV");
+    colour_location = glGetAttribLocation(g_gui_program, "Colour");
+
+    glGenBuffers(1, &vbo_handle);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_handle);
+    glBufferData(GL_ARRAY_BUFFER, vbo_max_size, NULL, GL_DYNAMIC_DRAW);
+
+    glGenVertexArrays(1, &vao_handle);
+    glBindVertexArray(vao_handle);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_handle);
+    glEnableVertexAttribArray(position_location);
+    glEnableVertexAttribArray(uv_location);
+    glEnableVertexAttribArray(colour_location);
+
+    glVertexAttribPointer(position_location, 2, GL_FLOAT, GL_FALSE, sizeof(ImDrawVert), (GLvoid*)OFFSETOF(ImDrawVert, pos));
+    glVertexAttribPointer(uv_location, 2, GL_FLOAT, GL_FALSE, sizeof(ImDrawVert), (GLvoid*)OFFSETOF(ImDrawVert, uv));
+    glVertexAttribPointer(colour_location, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(ImDrawVert), (GLvoid*)OFFSETOF(ImDrawVert, col));
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
 }
 
 void UpdateImGui()
@@ -305,25 +405,125 @@ void UpdateImGui()
     ImGui::NewFrame();
 }
 
+
+void showGUI(){
+    ImGui::Begin("Volume Settings", &g_show_gui, ImVec2(300, 500));
+    static float f;
+    g_over_gui = ImGui::IsMouseHoveringAnyWindow();
+
+    // Calculate and show frame rate
+    static ImVector<float> ms_per_frame; if (ms_per_frame.empty()) { ms_per_frame.resize(400); memset(&ms_per_frame.front(), 0, ms_per_frame.size()*sizeof(float)); }
+    static int ms_per_frame_idx = 0;
+    static float ms_per_frame_accum = 0.0f;
+
+    ms_per_frame_accum -= ms_per_frame[ms_per_frame_idx];
+    ms_per_frame[ms_per_frame_idx] = ImGui::GetIO().DeltaTime * 1000.0f;
+    ms_per_frame_accum += ms_per_frame[ms_per_frame_idx];
+   
+    ms_per_frame_idx = (ms_per_frame_idx + 1) % ms_per_frame.size();
+    const float ms_per_frame_avg = ms_per_frame_accum / 120;
+    
+
+    if (ImGui::CollapsingHeader("Task", 0, true, true))
+    {        
+        ImGui::RadioButton("Task 31", &g_task_chosen, 31); ImGui::SameLine();
+        ImGui::RadioButton("Task 32", &g_task_chosen, 32); ImGui::SameLine();
+        ImGui::RadioButton("Task 33", &g_task_chosen, 33); ImGui::SameLine();
+        ImGui::RadioButton("Task 4", &g_task_chosen, 4); ImGui::SameLine();
+        ImGui::RadioButton("Task 5", &g_task_chosen, 5); 
+
+        if (g_task_chosen != g_task_chosen_old){
+            g_reload_shader = true;
+            g_task_chosen_old = g_task_chosen;
+        }
+    }
+
+    bool shader_open = false;
+    if (g_reload_shader_error)
+        shader_open = true;
+
+
+    if (ImGui::CollapsingHeader("Shader", 0, true, shader_open))
+    {
+        static ImVec4 text_color(1.0, 1.0, 1.0, 1.0);
+        
+        if (g_reload_shader_error) {
+            text_color = ImVec4(1.0, 0.0, 0.0, 1.0);
+        }
+        else
+        {
+            text_color = ImVec4(0.0, 1.0, 0.0, 1.0);
+        }
+
+        ImGui::TextColored(text_color, "Shader OK");
+        ImGui::TextWrapped(g_error_message.c_str());
+
+        g_reload_shader ^= ImGui::Button("Reload Shader");
+
+    }
+
+    if (ImGui::CollapsingHeader("Transfer Function"))
+    {
+        //ImGui::PlotLines("Frame Times", &ms_per_frame.front(), (int)ms_per_frame.size(), (int)values_offset, buf, 0.0, 64.0, ImVec2(0, 70));
+        static float col[4] = { 0.4f, 0.7f, 0.0f, 0.5f };
+        ImGui::ColorEdit4("color", col);
+    }
+
+    if (ImGui::CollapsingHeader("Timing"))
+    {
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ms_per_frame_avg, 1000.0f / ms_per_frame_avg);
+        static bool pause;        
+        static size_t values_offset = 0;
+        if (!pause)
+        {
+            static float refresh_time = -1.0f;
+        }
+
+        char buf[50];
+        sprintf(buf, "avg %f", ms_per_frame_avg);
+        ImGui::PlotLines("Frame Times", &ms_per_frame.front(), (int)ms_per_frame.size(), (int)values_offset, buf, 0.0, 64.0, ImVec2(0, 70));
+
+        ImGui::SameLine(); ImGui::Checkbox("pause", &pause);
+        
+    }
+
+    if (ImGui::CollapsingHeader("Window options"))
+    {
+
+        if (ImGui::TreeNode("Style Editor"))
+        {
+            ImGui::ShowStyleEditor();
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Logging"))
+        {
+            ImGui::LogButtons();
+            ImGui::TreePop();
+        }
+    }
+
+    ImGui::End();
+}
+
 int main(int argc, char* argv[])
 {  
    //g_win = Window(g_window_res);
     InitImGui();
 
   // initialize the transfer function
-  Transfer_function transfer_fun;
   
   // first clear possible old values
-  transfer_fun.reset();
+    g_transfer_fun.reset();
 
   // the add_stop method takes:
   //  - unsigned char or float - data value     (0.0 .. 1.0) or (0..255)
   //  - vec4f         - color and alpha value   (0.0 .. 1.0) per channel
-  transfer_fun.add(0.0f, glm::vec4(0.0, 0.0, 0.0, 0.0));
-  transfer_fun.add(1.0f, glm::vec4(1.0, 1.0, 1.0, 1.0));
+    g_transfer_fun.add(0.0f, glm::vec4(0.0, 0.0, 0.0, 0.0));
+    g_transfer_fun.add(1.0f, glm::vec4(1.0, 1.0, 1.0, 1.0));
    
 
-  ///NOTHING TODO UNTIL HERE-------------------------------------------------------------------------------
+  ///NOTHING TODO HERE-------------------------------------------------------------------------------
   
   //init volume loader
   Volume_loader_raw loader;
@@ -348,18 +548,21 @@ int main(int argc, char* argv[])
 
   // init and upload transfer function texture
   glActiveTexture(GL_TEXTURE1);
-  createTexture2D(255u, 1u, (char*)&transfer_fun.get_RGBA_transfer_function_buffer()[0]);
+  createTexture2D(255u, 1u, (char*)&g_transfer_fun.get_RGBA_transfer_function_buffer()[0]);
 
   // setting up proxy geometry
   Cube cube(glm::vec3(0.0, 0.0, 0.0), max_volume_bounds);
 
   // loading actual raytracing shader code (volume.vert, volume.frag)
-  // edit volume.frag to define the result of our volume raycaster
-  GLuint program(0);
+  // edit volume.frag to define the result of our volume raycaster  
   try {
-    program = loadShaders(g_file_vertex_shader, g_file_fragment_shader);
+      g_volume_program = loadShaders(g_file_vertex_shader, g_file_fragment_shader, g_task_chosen);
   } catch (std::logic_error& e) {
-    std::cerr << e.what() << std::endl;
+    //std::cerr << e.what() << std::endl;
+    std::stringstream ss;
+    ss << e.what() << std::endl;
+    g_error_message = ss.str();
+    g_reload_shader_error = true;
   }
 
   // init object manipulator (turntable)
@@ -368,6 +571,7 @@ int main(int argc, char* argv[])
   // manage keys here
   // add new input if neccessary (ie changing sampling distance, isovalues, ...)
   while (!g_win.shouldClose()) {
+        
     // exit window with escape
     if (g_win.isKeyPressed(GLFW_KEY_ESCAPE)) {
       g_win.stop();
@@ -420,26 +624,49 @@ int main(int argc, char* argv[])
     //}
 
     /// reload shader if key R ist pressed
+    if (g_reload_shader){
+
+        GLuint newProgram(0);
+        try {
+            std::cout << "Reload shaders" << std::endl;
+            newProgram = loadShaders(g_file_vertex_shader, g_file_fragment_shader, g_task_chosen);
+            g_error_message = "";
+        }
+        catch (std::logic_error& e) {
+            //std::cerr << e.what() << std::endl;
+            std::stringstream ss;
+            ss << e.what() << std::endl;
+            g_error_message = ss.str();
+            g_reload_shader_error = true;
+            newProgram = 0;
+        }
+        if (0 != newProgram) {
+            glDeleteProgram(g_volume_program);
+            g_volume_program = newProgram;
+            g_reload_shader_error = false;
+
+        }
+        else
+        {
+            g_reload_shader_error = true;
+
+        }
+    }
+
     if (g_win.isKeyPressed(GLFW_KEY_R)) {
         if (g_reload_shader_pressed != true) {
-            GLuint newProgram(0);
-            try {
-                std::cout << "Reload shaders" << std::endl;
-                newProgram = loadShaders(g_file_vertex_shader, g_file_fragment_shader);
-            }
-            catch (std::logic_error& e) {
-                std::cerr << e.what() << std::endl;
-                newProgram = 0;
-            }
-            if (0 != newProgram) {
-                glDeleteProgram(program);
-                program = newProgram;
-            }
+            g_reload_shader = true;
             g_reload_shader_pressed = true;
         }
+        else{
+            g_reload_shader = false;
+        }
     } else {
+        g_reload_shader = false;
         g_reload_shader_pressed = false;
     }
+
+
 
     /// show transfer function if T is pressed
     if (g_win.isKeyPressed(GLFW_KEY_T)){
@@ -451,6 +678,9 @@ int main(int argc, char* argv[])
         g_show_transfer_function_pressed = false;
     }
 
+    //and now you can render to GL_TEXTURE_2D
+    //glBindFramebuffer(GL_FRAMEBUFFER, fb);
+
     auto size = g_win.windowSize();
     glViewport(0, 0, size.x, size.y);
     glClearColor(g_background_color.x, g_background_color.y, g_background_color.z, 1.0);
@@ -461,7 +691,8 @@ int main(int argc, char* argv[])
     float zNear = 0.025f, zFar = 10.0f;
     glm::mat4 projection = glm::perspective(fovy, aspect, zNear, zFar);
 
-    glm::vec3 translate = max_volume_bounds * glm::vec3(-0.5f);
+    glm::vec3 translate_rot = max_volume_bounds * glm::vec3(-0.5f, -0.5f, -0.5f);
+    glm::vec3 translate_pos = max_volume_bounds * glm::vec3(+0.5f, -0.0f, -0.0f);
 
     glm::vec3 eye = glm::vec3(0.0f, 0.0f, 1.5f);
     glm::vec3 target = glm::vec3(0.0f);
@@ -469,12 +700,21 @@ int main(int argc, char* argv[])
 
     auto view = glm::lookAt(eye, target, up);
 
+    auto turntable_matrix = manipulator.matrix();// manipulator.matrix(g_win);
+
+    if (!g_over_gui){
+        turntable_matrix = manipulator.matrix(g_win);
+    }
+
     auto model_view = view
-                    * manipulator.matrix(g_win)
+                    //* glm::inverse(glm::translate(translate_pos))
+                    //* glm::translate(translate_rot)
+                    * glm::translate(translate_pos)
+                    * turntable_matrix
                     // rotate head upright
                     * glm::rotate(0.5f*float(M_PI), glm::vec3(0.0f,1.0f,0.0f))
-                    * glm::rotate(0.5f*float(M_PI), glm::vec3(1.0f,0.0f,0.0f))
-                    * glm::translate(translate)
+                    * glm::rotate(0.5f*float(M_PI), glm::vec3(1.0f,0.0f,0.0f))   
+                    * glm::translate(translate_rot)
                     ;
 
     glm::vec4 camera_translate = glm::column(glm::inverse(model_view), 3);
@@ -484,105 +724,76 @@ int main(int argc, char* argv[])
 
     glm::vec4 light_location = glm::vec4(g_light_pos, 1.0f) * model_view;
 
-    glUseProgram(program);
+    glUseProgram(g_volume_program);
+        
+    glUniform1i(glGetUniformLocation(g_volume_program, "volume_texture"), 0);
+    glUniform1i(glGetUniformLocation(g_volume_program, "transfer_texture"), 1);
 
-    glUniform1i(glGetUniformLocation(program, "volume_texture"), 0);
-    glUniform1i(glGetUniformLocation(program, "transfer_texture"), 1);
-
-    glUniform3fv(glGetUniformLocation(program, "camera_location"), 1,
+    glUniform3fv(glGetUniformLocation(g_volume_program, "camera_location"), 1,
         glm::value_ptr(camera_location));
-    glUniform1f(glGetUniformLocation(program, "sampling_distance"), g_sampling_distance);
-    glUniform1f(glGetUniformLocation(program, "iso_value"), g_iso_value);
-    glUniform3fv(glGetUniformLocation(program, "max_bounds"), 1,
+    glUniform1f(glGetUniformLocation(g_volume_program, "sampling_distance"), g_sampling_distance);
+    glUniform1f(glGetUniformLocation(g_volume_program, "iso_value"), g_iso_value);
+    glUniform3fv(glGetUniformLocation(g_volume_program, "max_bounds"), 1,
         glm::value_ptr(max_volume_bounds));
-    glUniform3iv(glGetUniformLocation(program, "volume_dimensions"), 1,
+    glUniform3iv(glGetUniformLocation(g_volume_program, "volume_dimensions"), 1,
         glm::value_ptr(vol_dimensions));
 
-    glUniform3fv(glGetUniformLocation(program, "light_position"), 1,
+    glUniform3fv(glGetUniformLocation(g_volume_program, "light_position"), 1,
         //glm::value_ptr(glm::vec3(light_location.x, light_location.y, light_location.z)));
         glm::value_ptr(g_light_pos));
-    glUniform3fv(glGetUniformLocation(program, "light_color"), 1,
+    glUniform3fv(glGetUniformLocation(g_volume_program, "light_color"), 1,
         glm::value_ptr(g_light_color));
 
-    glUniform3fv(glGetUniformLocation(program, "light_color"), 1,
+    glUniform3fv(glGetUniformLocation(g_volume_program, "light_color"), 1,
         glm::value_ptr(g_light_color));
 
-    glUniformMatrix4fv(glGetUniformLocation(program, "Projection"), 1, GL_FALSE,
+    glUniformMatrix4fv(glGetUniformLocation(g_volume_program, "Projection"), 1, GL_FALSE,
         glm::value_ptr(projection));
-    glUniformMatrix4fv(glGetUniformLocation(program, "Modelview"), 1, GL_FALSE,
+    glUniformMatrix4fv(glGetUniformLocation(g_volume_program, "Modelview"), 1, GL_FALSE,
         glm::value_ptr(model_view));
-    //cube.draw();
+    cube.draw();
     glUseProgram(0);
 
     if (g_show_transfer_function)
-        transfer_fun.update_and_draw();
+        g_transfer_fun.update_and_draw();
 
+    //glBindFramebufferEXT(GL_FRAMEBUFFER, 0);
     //g_win.update();
 
-    //IMGUI ROUTINE begin
+    //IMGUI ROUTINE begin    
     ImGuiIO& io = ImGui::GetIO();
     io.MouseWheel = 0;
     mousePressed[0] = mousePressed[1] = false;
     glfwPollEvents();
     UpdateImGui();
 
-    static bool show_test_window = true;
-    static bool show_another_window = false;
-
-    // 1. Show a simple window
+    //// 1. Show a simple window
     // Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets appears in a window automatically called "Debug"
     {
-        static float f;
-        ImGui::Text("Hello, world!");
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        show_test_window ^= ImGui::Button("Test Window");
-        show_another_window ^= ImGui::Button("Another Window");
+        showGUI();
 
-        // Calculate and show frame rate
-        static float ms_per_frame[120] = { 0 };
-        static int ms_per_frame_idx = 0;
-        static float ms_per_frame_accum = 0.0f;
-        ms_per_frame_accum -= ms_per_frame[ms_per_frame_idx];
-        ms_per_frame[ms_per_frame_idx] = ImGui::GetIO().DeltaTime * 1000.0f;
-        ms_per_frame_accum += ms_per_frame[ms_per_frame_idx];
-        ms_per_frame_idx = (ms_per_frame_idx + 1) % 120;
-        const float ms_per_frame_avg = ms_per_frame_accum / 120;
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ms_per_frame_avg, 1000.0f / ms_per_frame_avg);
-    }
-
-    // 2. Show another simple window, this time using an explicit Begin/End pair
-    if (show_another_window)
-    {
-        ImGui::Begin("Another Window", &show_another_window, ImVec2(200, 100));
-        ImGui::Text("Hello");
-        ImGui::End();
-    }
-
-    // 3. Show the ImGui test window. Most of the sample code is in ImGui::ShowTestWindow()
-    if (show_test_window)
-    {
-        ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiSetCondition_FirstUseEver);
-        ImGui::ShowTestWindow(&show_test_window);
     }
 
     // Rendering
     glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-    glClearColor(0.8f, 0.6f, 0.6f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    //glClearColor(0.8f, 0.6f, 0.6f, 1.0f);
+    //glClear(GL_COLOR_BUFFER_BIT);
     ImGui::Render();
-    glfwSwapBuffers(g_win.getGLFWwindow());
+    //glfwSwapBuffers(g_win.getGLFWwindow());
     //IMGUI ROUTINE end
+
+    g_win.update();
 
   }
 
   //IMGUI shutdown
   if (vao_handle) glDeleteVertexArrays(1, &vao_handle);
   if (vbo_handle) glDeleteBuffers(1, &vbo_handle);
-  glDetachShader(shader_handle, vert_handle);
-  glDetachShader(shader_handle, frag_handle);
+  glDetachShader(g_gui_program, vert_handle);
+  glDetachShader(g_gui_program, frag_handle);
   glDeleteShader(vert_handle);
   glDeleteShader(frag_handle);
-  glDeleteProgram(shader_handle);
+  glDeleteProgram(g_gui_program);
   //IMGUI shutdown end
 
   ImGui::Shutdown();

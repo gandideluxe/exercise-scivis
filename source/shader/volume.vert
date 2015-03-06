@@ -9,10 +9,12 @@ uniform mat4 Projection;
 uniform mat4 Modelview;
 
 out vec3 ray_entry_position;
+out vec2 frag_uv;
+out vec4 o_color;
 
 void main()
 {
-  ray_entry_position = position;
-  vec4 Position = vec4(position, 1.0);
-  gl_Position = Projection * Modelview * Position;
+    ray_entry_position = position;
+    vec4 Position = vec4(position, 1.0);
+    gl_Position = Projection * Modelview * Position;
 }

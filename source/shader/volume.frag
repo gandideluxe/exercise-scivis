@@ -3,12 +3,14 @@
 #extension GL_ARB_explicit_attrib_location : require
 
 in vec3 ray_entry_position;
+
 layout(location = 0) out vec4 FragColor;
 
 uniform mat4 Modelview;
 
 uniform sampler3D volume_texture;
 uniform sampler2D transfer_texture;
+
 
 uniform vec3    camera_location;
 uniform float   sampling_distance;
@@ -62,7 +64,7 @@ get_sample_data(vec3 in_sampling_pos){
 
 }
 
-#define AUFGABE 31  // 31 32 33 4 5
+#define TASK 31  // 31 32 33 4 5
 void main()
 {
     /// One step trough the volume
@@ -76,7 +78,7 @@ void main()
     /// check if we are inside volume
     bool inside_volume = inside_volume_bounds(sampling_pos);
 
-#if AUFGABE == 31
+#if TASK == 31
     vec4 max_val = vec4(0.0, 0.0, 0.0, 0.0);
   
     // the traversal loop,
@@ -89,7 +91,7 @@ void main()
                 
         // apply the transfer functions to retrieve color and opacity
         vec4 color = texture(transfer_texture, vec2(s, s));
-          
+           
         // this is the example for maximum intensity projection
         max_val.r = max(color.r, max_val.r);
         max_val.g = max(color.g, max_val.g);
@@ -106,7 +108,7 @@ void main()
     dst = max_val;
 #endif 
     
-#if AUFGABE == 32
+#if TASK == 32
     
     // the traversal loop,
     // termination when the sampling position is outside volume boundarys
@@ -127,7 +129,7 @@ void main()
     }
 #endif
     
-#if AUFGABE == 33
+#if TASK == 33
     // the traversal loop,
     // termination when the sampling position is outside volume boundarys
     // another termination condition for early ray termination is added
@@ -147,7 +149,7 @@ void main()
     }
 #endif 
 
-#if AUFGABE == 4
+#if TASK == 4
     // the traversal loop,
     // termination when the sampling position is outside volume boundarys
     // another termination condition for early ray termination is added
@@ -167,7 +169,7 @@ void main()
     }
 #endif 
 
-#if AUFGABE == 5
+#if TASK == 5
 
     // the traversal loop,
     // termination when the sampling position is outside volume boundarys
