@@ -30,8 +30,9 @@ public:
 
   void reset();
 
-  image_data_type   get_RGBA_transfer_function_buffer() const;
-  void              update_and_draw();
+  image_data_type          get_RGBA_transfer_function_buffer() const;
+  void                     update_and_draw();
+  const container_type&    get_piecewise_container(){ return m_piecewise_container;};
 
 private:
     void update_vbo();

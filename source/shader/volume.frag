@@ -118,7 +118,7 @@ void main()
         // get sample
         float s = get_sample_data(sampling_pos);
 
-        // garbage code
+        // dummy code
         dst = vec4(1.0, 0.0, 0.0, 1.0);
         
         // increment the ray sampling position
@@ -138,7 +138,7 @@ void main()
         // get sample
         float s = get_sample_data(sampling_pos);
 
-        // garbage code
+        // dummy code
         dst = vec4(0.0, 1.0, 0.0, 1.0);
 
         // increment the ray sampling position
@@ -158,7 +158,7 @@ void main()
         // get sample
         float s = get_sample_data(sampling_pos);
 
-        // garbage code
+        // dummy code
         dst = vec4(0.0, 0.0, 1.0, 1.0);
 
         // increment the ray sampling position
@@ -179,7 +179,7 @@ void main()
         // get sample
         float s = get_sample_data(sampling_pos);
 
-        // garbage code
+        // dummy code
         dst = vec4(1.0, 0.0, 1.0, 1.0);
 
         // increment the ray sampling position

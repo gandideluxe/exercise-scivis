@@ -141,6 +141,8 @@ bool g_show_transfer_function_pressed = false;
 int g_task_chosen = 31;
 int g_task_chosen_old = g_task_chosen;
 
+bool  g_pause = false;
+
 
 struct Manipulator
 {
@@ -415,12 +417,13 @@ void showGUI(){
     static ImVector<float> ms_per_frame; if (ms_per_frame.empty()) { ms_per_frame.resize(400); memset(&ms_per_frame.front(), 0, ms_per_frame.size()*sizeof(float)); }
     static int ms_per_frame_idx = 0;
     static float ms_per_frame_accum = 0.0f;
-
+    if (!g_pause){
     ms_per_frame_accum -= ms_per_frame[ms_per_frame_idx];
     ms_per_frame[ms_per_frame_idx] = ImGui::GetIO().DeltaTime * 1000.0f;
     ms_per_frame_accum += ms_per_frame[ms_per_frame_idx];
    
     ms_per_frame_idx = (ms_per_frame_idx + 1) % ms_per_frame.size();
+    }
     const float ms_per_frame_avg = ms_per_frame_accum / 120;
     
 
@@ -438,15 +441,37 @@ void showGUI(){
         }
     }
 
-    bool shader_open = false;
-    if (g_reload_shader_error)
-        shader_open = true;
+    if (ImGui::CollapsingHeader("Render Options"))
+    {
+        ImVector<float> R;
+        ImVector<float> G;
+        ImVector<float> B;
+        ImVector<float> A;
 
+        auto color_con = g_transfer_fun.get_piecewise_container();
 
-    if (ImGui::CollapsingHeader("Shader", 0, true, shader_open))
+        //ImGui::PlotLines("Transfer Function R", &R.front(), (int)R.size(), (int)0, "", 0.0, 1.0, ImVec2(0, 70));
+        //ImGui::PlotLines("Transfer Function G", &G.front(), (int)G.size(), (int)0, "", 0.0, 1.0, ImVec2(0, 70));
+        //ImGui::PlotLines("Transfer Function B", &B.front(), (int)B.size(), (int)0, "", 0.0, 1.0, ImVec2(0, 70));
+        //ImGui::PlotLines("Transfer Function A", &A.front(), (int)A.size(), (int)0, "", 0.0, 1.0, ImVec2(0, 70));
+        
+        
+        static float col[4] = { 0.4f, 0.7f, 0.0f, 0.5f };        
+        ImGui::ColorEdit4("color", col);
+        static int data_value = 0;
+
+        ImGui::SliderInt("Data Value", &data_value, 0, 255);
+
+        bool add_entry_to_tf;
+        add_entry_to_tf ^= ImGui::Button("Add entry to transfer function");
+
+        ImGui::SliderFloat("sampling step", &g_sampling_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
+    }
+    
+    if (ImGui::CollapsingHeader("Shader", 0, true, true))
     {
         static ImVec4 text_color(1.0, 1.0, 1.0, 1.0);
-        
+
         if (g_reload_shader_error) {
             text_color = ImVec4(1.0, 0.0, 0.0, 1.0);
         }
@@ -462,28 +487,17 @@ void showGUI(){
 
     }
 
-    if (ImGui::CollapsingHeader("Transfer Function"))
-    {
-        //ImGui::PlotLines("Frame Times", &ms_per_frame.front(), (int)ms_per_frame.size(), (int)values_offset, buf, 0.0, 64.0, ImVec2(0, 70));
-        static float col[4] = { 0.4f, 0.7f, 0.0f, 0.5f };
-        ImGui::ColorEdit4("color", col);
-    }
-
     if (ImGui::CollapsingHeader("Timing"))
     {
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ms_per_frame_avg, 1000.0f / ms_per_frame_avg);
-        static bool pause;        
+
         static size_t values_offset = 0;
-        if (!pause)
-        {
-            static float refresh_time = -1.0f;
-        }
 
         char buf[50];
         sprintf(buf, "avg %f", ms_per_frame_avg);
         ImGui::PlotLines("Frame Times", &ms_per_frame.front(), (int)ms_per_frame.size(), (int)values_offset, buf, 0.0, 64.0, ImVec2(0, 70));
 
-        ImGui::SameLine(); ImGui::Checkbox("pause", &pause);
+        ImGui::SameLine(); ImGui::Checkbox("pause", &g_pause);
         
     }
 
@@ -751,7 +765,8 @@ int main(int argc, char* argv[])
         glm::value_ptr(projection));
     glUniformMatrix4fv(glGetUniformLocation(g_volume_program, "Modelview"), 1, GL_FALSE,
         glm::value_ptr(model_view));
-    cube.draw();
+    if(!g_pause)
+        cube.draw();
     glUseProgram(0);
 
     if (g_show_transfer_function)
