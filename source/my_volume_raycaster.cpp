@@ -464,10 +464,10 @@ void showGUI(){
             }
         }
 
-        ImGui::PlotLines("R", &R.front(), (int)R.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70));
-        ImGui::PlotLines("G", &G.front(), (int)G.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70));
-        ImGui::PlotLines("B", &B.front(), (int)B.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70));
-        ImGui::PlotLines("A", &A.front(), (int)A.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70));
+        ImGui::PlotLines("", &R.front(), (int)R.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70)); ImGui::SameLine(); ImGui::TextColored(ImVec4(1.0, 0.0, 0.0, 1.0), "Red");
+        ImGui::PlotLines("", &G.front(), (int)G.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70)); ImGui::SameLine(); ImGui::TextColored(ImVec4(0.0, 1.0, 0.0, 1.0), "Green");
+        ImGui::PlotLines("", &B.front(), (int)B.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70)); ImGui::SameLine(); ImGui::TextColored(ImVec4(0.0, 0.0, 1.0, 1.0), "Blue");
+        ImGui::PlotLines("", &A.front(), (int)A.size(), (int)0, "", 0.0, 255.0, ImVec2(0, 70)); ImGui::SameLine(); ImGui::TextColored(ImVec4(1.0, 1.0, 1.0, 1.0), "Alpha");
         
         static int data_value = 0;
         ImGui::SliderInt("Data Value", &data_value, 0, 255);
@@ -537,6 +537,7 @@ void showGUI(){
             if (save_tf_6){ tf_file.open("TF6", std::ios::out | std::ofstream::binary); }
             
             //std::copy(save_vect.begin(), save_vect.end(), std::ostreambuf_iterator<char>(tf_file));
+            tf_file.write((char*)&save_vect[0], sizeof(Transfer_function::element_type) * save_vect.size());
             tf_file.close();
 
         }
@@ -554,11 +555,21 @@ void showGUI(){
             if (load_tf_5){ tf_file.open("TF5", std::ios::in | std::ifstream::binary); }
             if (load_tf_6){ tf_file.open("TF6", std::ios::in | std::ifstream::binary); }
 
-            //std::istreambuf_iterator<Transfer_function::element_type> iter();
-            //std::copy(iter.begin(), iter.end(), std::back_inserter(load_vect));
-
+            tf_file.seekg(0, tf_file.end);
+            size_t size = tf_file.tellg();
+            unsigned elements = size / sizeof(Transfer_function::element_type);
+            tf_file.seekg(0);
+            load_vect.resize(elements);
+            tf_file.read((char*)&load_vect[0], size);
             tf_file.close();
 
+            g_transfer_fun.reset();
+            g_transfer_dirty = true;
+            for (auto c = load_vect.begin(); c != load_vect.end(); ++c)
+            {
+                std::cout << c->first << " "  << std::endl;
+                g_transfer_fun.add(c->first, c->second);
+            }
 
         }
 
