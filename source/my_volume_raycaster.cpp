@@ -95,7 +95,8 @@ Turntable  g_turntable;
 std::string g_file_string = "../../../data/head_w256_h256_d225_c1_b8.raw";
 
 // set the sampling distance for the ray traversal
-float       g_sampling_distance             = 0.001f;
+float       g_sampling_distance = 0.001f;
+float       g_sampling_ref_distance = 0.001f;
 
 float       g_iso_value                     = 0.2f;
 
@@ -145,6 +146,13 @@ int g_task_chosen_old = g_task_chosen;
 
 bool  g_pause = false;
 
+Volume_loader_raw g_volume_loader;
+volume_data_type g_volume_data;
+glm::ivec3 g_vol_dimensions;
+glm::vec3 g_max_volume_bounds;
+unsigned g_channel_size = 0;
+unsigned g_channel_count = 0;
+GLuint g_volume_texture = 0;
 
 struct Manipulator
 {
@@ -211,6 +219,32 @@ private:
   glm::vec2  m_slideMouse;
   glm::vec2  m_slidelastMouse;
 };
+
+bool read_volume(std::string& volume_string){
+
+    //init volume g_volume_loader
+    //Volume_loader_raw g_volume_loader;
+    //read volume dimensions
+    g_vol_dimensions = g_volume_loader.get_dimensions(g_file_string);
+
+    unsigned max_dim = std::max(std::max(g_vol_dimensions.x,
+        g_vol_dimensions.y),
+        g_vol_dimensions.z);
+
+    // calculating max volume bounds of volume (0.0 .. 1.0)
+    g_max_volume_bounds = glm::vec3(g_vol_dimensions) / glm::vec3((float)max_dim);
+
+    // loading volume file data
+    g_volume_data = g_volume_loader.load_volume(g_file_string);
+    g_channel_size = g_volume_loader.get_bit_per_channel(g_file_string) / 8;
+    g_channel_count = g_volume_loader.get_channel_count(g_file_string);
+
+    glActiveTexture(GL_TEXTURE0);
+    g_volume_texture = createTexture3D(g_vol_dimensions.x, g_vol_dimensions.y, g_vol_dimensions.z, g_channel_size, g_channel_size, (char*)&g_volume_data[0]);
+
+    return g_volume_texture;
+
+}
 
 // This is the main rendering function that you have to implement and provide to ImGui (via setting up 'RenderDrawListsFn' in the ImGuiIO structure)
 // If text or lines are blurry when integrating ImGui in your engine:
@@ -456,6 +490,10 @@ void showGUI(){
         if (g_transfer_dirty){
             auto color_con = g_transfer_fun.get_RGBA_transfer_function_buffer();
 
+            glActiveTexture(GL_TEXTURE1);
+            glDeleteTextures(1, &g_transfer_texture);
+            g_transfer_texture = createTexture2D(255u, 1u, (char*)&g_transfer_fun.get_RGBA_transfer_function_buffer()[0]);
+
             for (auto i = 0; i != byte_size; ++i){
                 R[i] = color_con[i * 4];
                 G[i] = color_con[i * 4 + 1];
@@ -475,17 +513,26 @@ void showGUI(){
         ImGui::ColorEdit4("color", col);
         
         bool add_entry_to_tf = false;
-        add_entry_to_tf ^= ImGui::Button("Add entry to transfer function");
+        add_entry_to_tf ^= ImGui::Button("Add entry"); ImGui::SameLine();
+        bool reset_tf = false;
+        reset_tf ^= ImGui::Button("Reset");
+
+        if (reset_tf){
+            g_transfer_fun.reset();
+            g_transfer_dirty = true;
+        }
 
         if (add_entry_to_tf){
             g_transfer_fun.add((unsigned)data_value, glm::vec4(col[0], col[1], col[2], col[3]));
             g_transfer_dirty = true;
         }
-        else{
+        
+        if (!reset_tf && !add_entry_to_tf){
             g_transfer_dirty = false;
         }
 
         ImGui::SliderFloat("sampling step", &g_sampling_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
+        ImGui::SliderFloat("reference sampling step", &g_sampling_ref_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
     }
 
     if (ImGui::CollapsingHeader("Save/Load", 0, true, true))
@@ -539,7 +586,6 @@ void showGUI(){
             //std::copy(save_vect.begin(), save_vect.end(), std::ostreambuf_iterator<char>(tf_file));
             tf_file.write((char*)&save_vect[0], sizeof(Transfer_function::element_type) * save_vect.size());
             tf_file.close();
-
         }
 
         if (load_tf_1 || load_tf_2 || load_tf_3 || load_tf_4 || load_tf_5 || load_tf_6){
@@ -555,21 +601,26 @@ void showGUI(){
             if (load_tf_5){ tf_file.open("TF5", std::ios::in | std::ifstream::binary); }
             if (load_tf_6){ tf_file.open("TF6", std::ios::in | std::ifstream::binary); }
 
-            tf_file.seekg(0, tf_file.end);
-            size_t size = tf_file.tellg();
-            unsigned elements = size / sizeof(Transfer_function::element_type);
-            tf_file.seekg(0);
-            load_vect.resize(elements);
-            tf_file.read((char*)&load_vect[0], size);
-            tf_file.close();
 
-            g_transfer_fun.reset();
-            g_transfer_dirty = true;
-            for (auto c = load_vect.begin(); c != load_vect.end(); ++c)
-            {
-                std::cout << c->first << " "  << std::endl;
-                g_transfer_fun.add(c->first, c->second);
+            if (tf_file.good()){
+                tf_file.seekg(0, tf_file.end);
+
+                size_t size = tf_file.tellg();
+                unsigned elements = size / sizeof(Transfer_function::element_type);
+                tf_file.seekg(0);
+
+                load_vect.resize(elements);
+                tf_file.read((char*)&load_vect[0], size);
+
+                g_transfer_fun.reset();
+                g_transfer_dirty = true;
+                for (auto c = load_vect.begin(); c != load_vect.end(); ++c)
+                {
+                    g_transfer_fun.add(c->first, c->second);
+                }
             }
+
+            tf_file.close();
 
         }
 
@@ -585,12 +636,19 @@ void showGUI(){
         bool load_volume_3 = false;
 
         ImGui::Text("Volumes");
-        load_volume_1 ^= ImGui::Button("Load Volume 1");
-        load_volume_2 ^= ImGui::Button("Load Volume 2");
-        load_volume_3 ^= ImGui::Button("Load Volume 3");
-
+        load_volume_1 ^= ImGui::Button("Load Volume Head");
+        load_volume_2 ^= ImGui::Button("Load Volume Engine");
+        //load_volume_3 ^= ImGui::Button("Load Volume 3");
         
-
+        
+        if (load_volume_1){
+            g_file_string = "../../../data/head_w256_h256_d225_c1_b8.raw";
+            read_volume(g_file_string);
+        }
+        if (load_volume_2){
+            g_file_string = "../../../data/Engine_w256_h256_d256_c1_b8.raw";
+            read_volume(g_file_string);
+        }
     }
     
     if (ImGui::CollapsingHeader("Shader", 0, true, true))
@@ -620,7 +678,7 @@ void showGUI(){
 
         char buf[50];
         sprintf(buf, "avg %f", ms_per_frame_avg);
-        ImGui::PlotLines("Frame Times", &ms_per_frame.front(), (int)ms_per_frame.size(), (int)values_offset, buf, 0.0, 64.0, ImVec2(0, 70));
+        ImGui::PlotLines("Frame Times", &ms_per_frame.front(), (int)ms_per_frame.size(), (int)values_offset, buf, 0.0, 150.0, ImVec2(0, 70));
 
         ImGui::SameLine(); ImGui::Checkbox("pause", &g_pause);
         
@@ -663,36 +721,18 @@ int main(int argc, char* argv[])
    
 
   ///NOTHING TODO HERE-------------------------------------------------------------------------------
-  
-  //init volume loader
-  Volume_loader_raw loader;
-  //read volume dimensions
-  glm::ivec3 vol_dimensions = loader.get_dimensions(g_file_string);
+    
+    // init and upload volume texture
+    bool check = read_volume(g_file_string);
 
-  unsigned max_dim = std::max(std::max(vol_dimensions.x,
-                            vol_dimensions.y),
-                            vol_dimensions.z);
-
-  // calculating max volume bounds of volume (0.0 .. 1.0)
-  glm::vec3 max_volume_bounds = glm::vec3(vol_dimensions) / glm::vec3((float)max_dim);
-  
-  // loading volume file data
-  auto volume_data = loader.load_volume(g_file_string);
-  auto channel_size = loader.get_bit_per_channel(g_file_string) / 8;
-  auto channel_count = loader.get_channel_count(g_file_string);
-  
-  // init and upload volume texture
-  glActiveTexture(GL_TEXTURE0);
-  createTexture3D(vol_dimensions.x, vol_dimensions.y, vol_dimensions.z, channel_size, channel_count, (char*)&volume_data[0]);
-
-  // init and upload transfer function texture
+    // init and upload transfer function texture
   glActiveTexture(GL_TEXTURE1);
   g_transfer_texture = createTexture2D(255u, 1u, (char*)&g_transfer_fun.get_RGBA_transfer_function_buffer()[0]);
 
   
 
   // setting up proxy geometry
-  Cube cube(glm::vec3(0.0, 0.0, 0.0), max_volume_bounds);
+  Cube cube(glm::vec3(0.0, 0.0, 0.0), g_max_volume_bounds);
 
   // loading actual raytracing shader code (volume.vert, volume.frag)
   // edit volume.frag to define the result of our volume raycaster  
@@ -832,8 +872,8 @@ int main(int argc, char* argv[])
     float zNear = 0.025f, zFar = 10.0f;
     glm::mat4 projection = glm::perspective(fovy, aspect, zNear, zFar);
 
-    glm::vec3 translate_rot = max_volume_bounds * glm::vec3(-0.5f, -0.5f, -0.5f);
-    glm::vec3 translate_pos = max_volume_bounds * glm::vec3(+0.5f, -0.0f, -0.0f);
+    glm::vec3 translate_rot = g_max_volume_bounds * glm::vec3(-0.5f, -0.5f, -0.5f);
+    glm::vec3 translate_pos = g_max_volume_bounds * glm::vec3(+0.5f, -0.0f, -0.0f);
 
     glm::vec3 eye = glm::vec3(0.0f, 0.0f, 1.5f);
     glm::vec3 target = glm::vec3(0.0f);
@@ -875,9 +915,9 @@ int main(int argc, char* argv[])
     glUniform1f(glGetUniformLocation(g_volume_program, "sampling_distance"), g_sampling_distance);
     glUniform1f(glGetUniformLocation(g_volume_program, "iso_value"), g_iso_value);
     glUniform3fv(glGetUniformLocation(g_volume_program, "max_bounds"), 1,
-        glm::value_ptr(max_volume_bounds));
+        glm::value_ptr(g_max_volume_bounds));
     glUniform3iv(glGetUniformLocation(g_volume_program, "volume_dimensions"), 1,
-        glm::value_ptr(vol_dimensions));
+        glm::value_ptr(g_vol_dimensions));
 
     glUniform3fv(glGetUniformLocation(g_volume_program, "light_position"), 1,
         //glm::value_ptr(glm::vec3(light_location.x, light_location.y, light_location.z)));
