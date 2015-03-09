@@ -99,9 +99,10 @@ GLuint loadShaders(
   std::stringstream ss3;
   ss3 << enable_lightning;
   
-
   index = f.find("#define ENABLE_LIGHTNING");
   f.replace(index + 25, 1, ss3.str());
+
+  //std::cout << f << std::endl;
 
   return createProgram(v,f);
 }
@@ -495,9 +496,9 @@ void showGUI(){
         ImGui::RadioButton("Inaccurate", &g_task_chosen, 31);
         ImGui::RadioButton("Binary Search", &g_task_chosen, 32);
         ImGui::Text("Direct Volume Rendering");
-        ImGui::RadioButton("Compositing", &g_task_chosen, 4);
-        ImGui::Checkbox("Enable Lightning", &g_opacity_correction_toggle);
-        ImGui::Checkbox("Opacity Correction", &g_lighting_toggle);
+        ImGui::RadioButton("Compositing", &g_task_chosen, 41);
+        g_reload_shader ^= ImGui::Checkbox("Enable Lightning", &g_lighting_toggle);
+        g_reload_shader ^= ImGui::Checkbox("Opacity Correction", &g_opacity_correction_toggle);
 
         if (g_task_chosen != g_task_chosen_old){
             g_reload_shader = true;

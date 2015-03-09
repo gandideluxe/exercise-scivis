@@ -105,7 +105,7 @@ void main()
     }
 #endif
     
-#if TASK == 31 || TASK == 32 || TASK == 33  
+#if TASK == 31 || TASK == 32  
     // the traversal loop,
     // termination when the sampling position is outside volume boundarys
     // another termination condition for early ray termination is added
