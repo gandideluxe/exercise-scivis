@@ -493,7 +493,7 @@ void showGUI(){
         ImGui::RadioButton("Max Intensity Projection", &g_task_chosen, 21);
         ImGui::RadioButton("Average Intensity Projection", &g_task_chosen, 22);
         ImGui::Text("Iso Surface Rendering");        
-        ImGui::SliderFloat("sampling step", &g_iso_value, 0.0f, 1.0f, "%.8f", 1.0f);
+        ImGui::SliderFloat("Iso Value", &g_iso_value, 0.0f, 1.0f, "%.8f", 1.0f);
         ImGui::RadioButton("Inaccurate", &g_task_chosen, 31);
         ImGui::RadioButton("Binary Search", &g_task_chosen, 32);
         ImGui::Text("Direct Volume Rendering");
