@@ -74,16 +74,34 @@ GLuint loadShaders(std::string const& vs, std::string const& fs)
     return createProgram(v, f);
 }
 
-GLuint loadShaders(std::string const& vs, std::string const& fs, const int task_nbr)
+GLuint loadShaders(
+    std::string const& vs, 
+    std::string const& fs, 
+    const int task_nbr, 
+    const int enable_lightning, 
+    const int enable_opeacity_cor)
 {
   std::string v = readFile(vs);
   std::string f = readFile(fs);
 
-  std::stringstream ss;
-  ss << task_nbr;
+  std::stringstream ss1;
+  ss1 << task_nbr;
 
   auto index = f.find("#define TASK");
-  f.replace(index + 13, 3, ss.str());
+  f.replace(index + 13, 2, ss1.str());
+
+  std::stringstream ss2;
+  ss2 << enable_opeacity_cor;
+
+  index = f.find("#define ENABLE_OPACITY_CORRECTION");
+  f.replace(index + 34, 1, ss2.str());
+
+  std::stringstream ss3;
+  ss3 << enable_lightning;
+  
+
+  index = f.find("#define ENABLE_LIGHTNING");
+  f.replace(index + 25, 1, ss3.str());
 
   return createProgram(v,f);
 }
@@ -119,6 +137,9 @@ bool g_reload_shader_error = false;
 Transfer_function g_transfer_fun;
 GLuint g_transfer_texture;
 bool g_transfer_dirty = true;
+bool g_redraw_tf = true;
+bool g_lighting_toggle = false;
+bool g_opacity_correction_toggle = false;
 
 // imgui variables
 static bool g_show_gui = true;
@@ -141,7 +162,7 @@ bool g_reload_shader_pressed = false;
 bool g_show_transfer_function = false;
 bool g_show_transfer_function_pressed = false;
 
-int g_task_chosen = 31;
+int g_task_chosen = 21;
 int g_task_chosen_old = g_task_chosen;
 
 bool  g_pause = false;
@@ -153,6 +174,8 @@ glm::vec3 g_max_volume_bounds;
 unsigned g_channel_size = 0;
 unsigned g_channel_count = 0;
 GLuint g_volume_texture = 0;
+
+int g_bilinear_interpolation = true;
 
 struct Manipulator
 {
@@ -455,22 +478,26 @@ void showGUI(){
     static int ms_per_frame_idx = 0;
     static float ms_per_frame_accum = 0.0f;
     if (!g_pause){
-    ms_per_frame_accum -= ms_per_frame[ms_per_frame_idx];
-    ms_per_frame[ms_per_frame_idx] = ImGui::GetIO().DeltaTime * 1000.0f;
-    ms_per_frame_accum += ms_per_frame[ms_per_frame_idx];
+        ms_per_frame_accum -= ms_per_frame[ms_per_frame_idx];
+        ms_per_frame[ms_per_frame_idx] = ImGui::GetIO().DeltaTime * 1000.0f;
+        ms_per_frame_accum += ms_per_frame[ms_per_frame_idx];
    
-    ms_per_frame_idx = (ms_per_frame_idx + 1) % ms_per_frame.size();
+        ms_per_frame_idx = (ms_per_frame_idx + 1) % ms_per_frame.size();
     }
     const float ms_per_frame_avg = ms_per_frame_accum / 120;
     
-
     if (ImGui::CollapsingHeader("Task", 0, true, true))
     {        
-        ImGui::RadioButton("Task 31", &g_task_chosen, 31); ImGui::SameLine();
-        ImGui::RadioButton("Task 32", &g_task_chosen, 32); ImGui::SameLine();
-        ImGui::RadioButton("Task 33", &g_task_chosen, 33); ImGui::SameLine();
-        ImGui::RadioButton("Task 4", &g_task_chosen, 4); ImGui::SameLine();
-        ImGui::RadioButton("Task 5", &g_task_chosen, 5); 
+        ImGui::Text("Introduction");
+        ImGui::RadioButton("Max Intensity Projection", &g_task_chosen, 21);
+        ImGui::RadioButton("Average Intensity Projection", &g_task_chosen, 22);
+        ImGui::Text("Iso Surface Rendering");
+        ImGui::RadioButton("Inaccurate", &g_task_chosen, 31);
+        ImGui::RadioButton("Binary Search", &g_task_chosen, 32);
+        ImGui::Text("Direct Volume Rendering");
+        ImGui::RadioButton("Compositing", &g_task_chosen, 4);
+        ImGui::Checkbox("Enable Lightning", &g_opacity_correction_toggle);
+        ImGui::Checkbox("Opacity Correction", &g_lighting_toggle);
 
         if (g_task_chosen != g_task_chosen_old){
             g_reload_shader = true;
@@ -478,7 +505,7 @@ void showGUI(){
         }
     }
 
-    if (ImGui::CollapsingHeader("Render Options"))
+    if (ImGui::CollapsingHeader("Transfer Function"))
     {
         static unsigned byte_size = 255;
 
@@ -487,18 +514,16 @@ void showGUI(){
         static ImVector<float> B; if (B.empty()){ B.resize(byte_size); }
         static ImVector<float> A; if (A.empty()){ A.resize(byte_size); }
 
-        if (g_transfer_dirty){
+        if (g_redraw_tf){
+            g_redraw_tf = false;
+
             auto color_con = g_transfer_fun.get_RGBA_transfer_function_buffer();
-
-            glActiveTexture(GL_TEXTURE1);
-            glDeleteTextures(1, &g_transfer_texture);
-            g_transfer_texture = createTexture2D(255u, 1u, (char*)&g_transfer_fun.get_RGBA_transfer_function_buffer()[0]);
-
+        
             for (auto i = 0; i != byte_size; ++i){
                 R[i] = color_con[i * 4];
                 G[i] = color_con[i * 4 + 1];
                 B[i] = color_con[i * 4 + 2];
-                A[i] = color_con[i * 4 + 3];                
+                A[i] = color_con[i * 4 + 3];
             }
         }
 
@@ -520,117 +545,113 @@ void showGUI(){
         if (reset_tf){
             g_transfer_fun.reset();
             g_transfer_dirty = true;
+            g_redraw_tf = true;
         }
 
         if (add_entry_to_tf){
             g_transfer_fun.add((unsigned)data_value, glm::vec4(col[0], col[1], col[2], col[3]));
             g_transfer_dirty = true;
-        }
-        
-        if (!reset_tf && !add_entry_to_tf){
-            g_transfer_dirty = false;
+            g_redraw_tf = true;
         }
 
-        ImGui::SliderFloat("sampling step", &g_sampling_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
-        ImGui::SliderFloat("reference sampling step", &g_sampling_ref_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
+        if (ImGui::CollapsingHeader("Transfer Function - Save/Load", 0, true, true))
+        {
+            ImGui::Text("Transferfunctions");
+            bool load_tf_1 = false;
+            bool load_tf_2 = false;
+            bool load_tf_3 = false;
+            bool load_tf_4 = false;
+            bool load_tf_5 = false;
+            bool load_tf_6 = false;
+            bool save_tf_1 = false;
+            bool save_tf_2 = false;
+            bool save_tf_3 = false;
+            bool save_tf_4 = false;
+            bool save_tf_5 = false;
+            bool save_tf_6 = false;
+
+            save_tf_1 ^= ImGui::Button("Save TF1"); ImGui::SameLine();
+            load_tf_1 ^= ImGui::Button("Load TF1");
+            save_tf_2 ^= ImGui::Button("Save TF2"); ImGui::SameLine();
+            load_tf_2 ^= ImGui::Button("Load TF2");
+            save_tf_3 ^= ImGui::Button("Save TF3"); ImGui::SameLine();
+            load_tf_3 ^= ImGui::Button("Load TF3");
+            save_tf_4 ^= ImGui::Button("Save TF4"); ImGui::SameLine();
+            load_tf_4 ^= ImGui::Button("Load TF4");
+            save_tf_5 ^= ImGui::Button("Save TF5"); ImGui::SameLine();
+            load_tf_5 ^= ImGui::Button("Load TF5");
+            save_tf_6 ^= ImGui::Button("Save TF6"); ImGui::SameLine();
+            load_tf_6 ^= ImGui::Button("Load TF6");
+
+            if (save_tf_1 || save_tf_2 || save_tf_3 || save_tf_4 || save_tf_5 || save_tf_6){
+                auto con = g_transfer_fun.get_piecewise_container();
+                std::vector<Transfer_function::element_type> save_vect;
+
+                for (auto c = con.begin(); c != con.end(); ++c)
+                {
+                    save_vect.push_back(*c);
+                }
+
+                std::ofstream tf_file;
+
+                if (save_tf_1){ tf_file.open("TF1", std::ios::out | std::ofstream::binary); }
+                if (save_tf_2){ tf_file.open("TF2", std::ios::out | std::ofstream::binary); }
+                if (save_tf_3){ tf_file.open("TF3", std::ios::out | std::ofstream::binary); }
+                if (save_tf_4){ tf_file.open("TF4", std::ios::out | std::ofstream::binary); }
+                if (save_tf_5){ tf_file.open("TF5", std::ios::out | std::ofstream::binary); }
+                if (save_tf_6){ tf_file.open("TF6", std::ios::out | std::ofstream::binary); }
+
+                //std::copy(save_vect.begin(), save_vect.end(), std::ostreambuf_iterator<char>(tf_file));
+                tf_file.write((char*)&save_vect[0], sizeof(Transfer_function::element_type) * save_vect.size());
+                tf_file.close();
+            }
+
+            if (load_tf_1 || load_tf_2 || load_tf_3 || load_tf_4 || load_tf_5 || load_tf_6){
+                auto con = g_transfer_fun.get_piecewise_container();
+                std::vector<Transfer_function::element_type> load_vect;
+
+                std::ifstream tf_file;
+
+                if (load_tf_1){ tf_file.open("TF1", std::ios::in | std::ifstream::binary); }
+                if (load_tf_2){ tf_file.open("TF2", std::ios::in | std::ifstream::binary); }
+                if (load_tf_3){ tf_file.open("TF3", std::ios::in | std::ifstream::binary); }
+                if (load_tf_4){ tf_file.open("TF4", std::ios::in | std::ifstream::binary); }
+                if (load_tf_5){ tf_file.open("TF5", std::ios::in | std::ifstream::binary); }
+                if (load_tf_6){ tf_file.open("TF6", std::ios::in | std::ifstream::binary); }
+
+
+                if (tf_file.good()){
+                    tf_file.seekg(0, tf_file.end);
+
+                    size_t size = tf_file.tellg();
+                    unsigned elements = size / (unsigned)sizeof(Transfer_function::element_type);
+                    tf_file.seekg(0);
+
+                    load_vect.resize(elements);
+                    tf_file.read((char*)&load_vect[0], size);
+
+                    g_transfer_fun.reset();
+                    g_transfer_dirty = true;
+                    for (auto c = load_vect.begin(); c != load_vect.end(); ++c)
+                    {
+                        g_transfer_fun.add(c->first, c->second);
+                    }
+                }
+
+                tf_file.close();
+
+            }
+
+            if (load_tf_1 || load_tf_2 || load_tf_3 || load_tf_4 || load_tf_5 || save_tf_6){
+                g_transfer_fun.get_piecewise_container();
+            }
+        }
     }
 
-    if (ImGui::CollapsingHeader("Save/Load", 0, true, true))
+    if (ImGui::CollapsingHeader("Load Volumes", 0, true, true))
     {
 
-        ImGui::Text("Transferfunctions");
-        bool load_tf_1 = false;
-        bool load_tf_2 = false;
-        bool load_tf_3 = false;
-        bool load_tf_4 = false;
-        bool load_tf_5 = false;
-        bool load_tf_6 = false;
-        bool save_tf_1 = false;
-        bool save_tf_2 = false;
-        bool save_tf_3 = false;
-        bool save_tf_4 = false;
-        bool save_tf_5 = false;
-        bool save_tf_6 = false;
-
-        save_tf_1 ^= ImGui::Button("Save TF1"); ImGui::SameLine();
-        load_tf_1 ^= ImGui::Button("Load TF1"); 
-        save_tf_2 ^= ImGui::Button("Save TF2"); ImGui::SameLine();
-        load_tf_2 ^= ImGui::Button("Load TF2");
-        save_tf_3 ^= ImGui::Button("Save TF3"); ImGui::SameLine();
-        load_tf_3 ^= ImGui::Button("Load TF3");
-        save_tf_4 ^= ImGui::Button("Save TF4"); ImGui::SameLine();
-        load_tf_4 ^= ImGui::Button("Load TF4");
-        save_tf_5 ^= ImGui::Button("Save TF5"); ImGui::SameLine();
-        load_tf_5 ^= ImGui::Button("Load TF5");
-        save_tf_6 ^= ImGui::Button("Save TF6"); ImGui::SameLine();
-        load_tf_6 ^= ImGui::Button("Load TF6");
-        
-        if (save_tf_1 || save_tf_2 || save_tf_3 || save_tf_4 || save_tf_5 || save_tf_6){
-            auto con = g_transfer_fun.get_piecewise_container();
-            std::vector<Transfer_function::element_type> save_vect;
-            
-            for (auto c = con.begin(); c != con.end(); ++c)
-            {
-                save_vect.push_back(*c);
-            }
-
-            std::ofstream tf_file;
-
-            if (save_tf_1){ tf_file.open("TF1", std::ios::out | std::ofstream::binary); }
-            if (save_tf_2){ tf_file.open("TF2", std::ios::out | std::ofstream::binary); }
-            if (save_tf_3){ tf_file.open("TF3", std::ios::out | std::ofstream::binary); }
-            if (save_tf_4){ tf_file.open("TF4", std::ios::out | std::ofstream::binary); }
-            if (save_tf_5){ tf_file.open("TF5", std::ios::out | std::ofstream::binary); }
-            if (save_tf_6){ tf_file.open("TF6", std::ios::out | std::ofstream::binary); }
-            
-            //std::copy(save_vect.begin(), save_vect.end(), std::ostreambuf_iterator<char>(tf_file));
-            tf_file.write((char*)&save_vect[0], sizeof(Transfer_function::element_type) * save_vect.size());
-            tf_file.close();
-        }
-
-        if (load_tf_1 || load_tf_2 || load_tf_3 || load_tf_4 || load_tf_5 || load_tf_6){
-            auto con = g_transfer_fun.get_piecewise_container();
-            std::vector<Transfer_function::element_type> load_vect;
-
-            std::ifstream tf_file;
-                        
-            if (load_tf_1){ tf_file.open("TF1", std::ios::in | std::ifstream::binary); }
-            if (load_tf_2){ tf_file.open("TF2", std::ios::in | std::ifstream::binary); }
-            if (load_tf_3){ tf_file.open("TF3", std::ios::in | std::ifstream::binary); }
-            if (load_tf_4){ tf_file.open("TF4", std::ios::in | std::ifstream::binary); }
-            if (load_tf_5){ tf_file.open("TF5", std::ios::in | std::ifstream::binary); }
-            if (load_tf_6){ tf_file.open("TF6", std::ios::in | std::ifstream::binary); }
-
-
-            if (tf_file.good()){
-                tf_file.seekg(0, tf_file.end);
-
-                size_t size = tf_file.tellg();
-                unsigned elements = size / sizeof(Transfer_function::element_type);
-                tf_file.seekg(0);
-
-                load_vect.resize(elements);
-                tf_file.read((char*)&load_vect[0], size);
-
-                g_transfer_fun.reset();
-                g_transfer_dirty = true;
-                for (auto c = load_vect.begin(); c != load_vect.end(); ++c)
-                {
-                    g_transfer_fun.add(c->first, c->second);
-                }
-            }
-
-            tf_file.close();
-
-        }
-
-
-
-
-        if (load_tf_1 || load_tf_2 || load_tf_3 || load_tf_4 || load_tf_5 || save_tf_6){
-            g_transfer_fun.get_piecewise_container();
-        }
-
+       
         bool load_volume_1 = false;
         bool load_volume_2 = false;
         bool load_volume_3 = false;
@@ -650,7 +671,19 @@ void showGUI(){
             read_volume(g_file_string);
         }
     }
-    
+
+
+    if (ImGui::CollapsingHeader("Quality Settings"))
+    {
+        ImGui::Text("Interpolation");
+        ImGui::RadioButton("Nearest Neighbour", &g_bilinear_interpolation, 0);
+        ImGui::RadioButton("Bilinear", &g_bilinear_interpolation, 1);
+
+        ImGui::Text("Slamping Size");
+        ImGui::SliderFloat("sampling step", &g_sampling_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
+        ImGui::SliderFloat("reference sampling step", &g_sampling_ref_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
+    }
+
     if (ImGui::CollapsingHeader("Shader", 0, true, true))
     {
         static ImVec4 text_color(1.0, 1.0, 1.0, 1.0);
@@ -737,7 +770,10 @@ int main(int argc, char* argv[])
   // loading actual raytracing shader code (volume.vert, volume.frag)
   // edit volume.frag to define the result of our volume raycaster  
   try {
-      g_volume_program = loadShaders(g_file_vertex_shader, g_file_fragment_shader, g_task_chosen);
+      g_volume_program = loadShaders(g_file_vertex_shader, g_file_fragment_shader, 
+                                      g_task_chosen,                                       
+                                      g_lighting_toggle,
+                                      g_opacity_correction_toggle);
   } catch (std::logic_error& e) {
     //std::cerr << e.what() << std::endl;
     std::stringstream ss;
@@ -809,8 +845,8 @@ int main(int argc, char* argv[])
 
         GLuint newProgram(0);
         try {
-            std::cout << "Reload shaders" << std::endl;
-            newProgram = loadShaders(g_file_vertex_shader, g_file_fragment_shader, g_task_chosen);
+            //std::cout << "Reload shaders" << std::endl;
+            newProgram = loadShaders(g_file_vertex_shader, g_file_fragment_shader, g_task_chosen, g_lighting_toggle, g_opacity_correction_toggle);
             g_error_message = "";
         }
         catch (std::logic_error& e) {
@@ -859,8 +895,29 @@ int main(int argc, char* argv[])
         g_show_transfer_function_pressed = false;
     }
 
-    //and now you can render to GL_TEXTURE_2D
-    //glBindFramebuffer(GL_FRAMEBUFFER, fb);
+    if (g_transfer_dirty){
+        g_transfer_dirty = false;
+
+        static unsigned byte_size = 255;
+        
+        auto color_con = g_transfer_fun.get_RGBA_transfer_function_buffer();
+
+        glActiveTexture(GL_TEXTURE1);
+        glDeleteTextures(1, &g_transfer_texture);
+        g_transfer_texture = createTexture2D(255u, 1u, (char*)&g_transfer_fun.get_RGBA_transfer_function_buffer()[0]);
+
+    }
+
+    glBindTexture(GL_TEXTURE_3D, g_volume_texture);
+
+    if (g_bilinear_interpolation){
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    }
+    else{
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
 
     auto size = g_win.windowSize();
     glViewport(0, 0, size.x, size.y);
@@ -938,9 +995,6 @@ int main(int argc, char* argv[])
 
     if (g_show_transfer_function)
         g_transfer_fun.update_and_draw();
-
-    //glBindFramebufferEXT(GL_FRAMEBUFFER, 0);
-    //g_win.update();
 
     //IMGUI ROUTINE begin    
     ImGuiIO& io = ImGui::GetIO();

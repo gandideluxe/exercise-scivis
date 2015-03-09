@@ -30,7 +30,7 @@ Volume_loader_raw::load_volume(std::string filepath)
     volume_file.read((char*)&data.front(), data_size);
     volume_file.close();
 
-    std::cout << "File " << filepath << " successfully loaded" << std::endl;
+    //std::cout << "File " << filepath << " successfully loaded" << std::endl;
 
     return data;
   } else {
