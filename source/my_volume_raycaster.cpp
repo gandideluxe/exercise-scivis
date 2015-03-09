@@ -115,7 +115,7 @@ std::string g_file_string = "../../../data/head_w256_h256_d225_c1_b8.raw";
 
 // set the sampling distance for the ray traversal
 float       g_sampling_distance = 0.001f;
-float       g_sampling_ref_distance = 0.001f;
+float       g_sampling_distance_ref = 0.001f;
 
 float       g_iso_value                     = 0.2f;
 
@@ -492,7 +492,8 @@ void showGUI(){
         ImGui::Text("Introduction");
         ImGui::RadioButton("Max Intensity Projection", &g_task_chosen, 21);
         ImGui::RadioButton("Average Intensity Projection", &g_task_chosen, 22);
-        ImGui::Text("Iso Surface Rendering");
+        ImGui::Text("Iso Surface Rendering");        
+        ImGui::SliderFloat("sampling step", &g_iso_value, 0.0f, 1.0f, "%.8f", 1.0f);
         ImGui::RadioButton("Inaccurate", &g_task_chosen, 31);
         ImGui::RadioButton("Binary Search", &g_task_chosen, 32);
         ImGui::Text("Direct Volume Rendering");
@@ -681,8 +682,8 @@ void showGUI(){
         ImGui::RadioButton("Bilinear", &g_bilinear_interpolation, 1);
 
         ImGui::Text("Slamping Size");
-        ImGui::SliderFloat("sampling step", &g_sampling_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
-        ImGui::SliderFloat("reference sampling step", &g_sampling_ref_distance, 0.0005f, 0.01f, "%.5f", 0.1f);
+        ImGui::SliderFloat("sampling step", &g_sampling_distance, 0.0005f, 0.1f, "%.5f", 4.0f);
+        ImGui::SliderFloat("reference sampling step", &g_sampling_distance_ref, 0.0005f, 0.1f, "%.5f", 4.0f);
     }
 
     if (ImGui::CollapsingHeader("Shader", 0, true, true))
@@ -971,6 +972,7 @@ int main(int argc, char* argv[])
     glUniform3fv(glGetUniformLocation(g_volume_program, "camera_location"), 1,
         glm::value_ptr(camera_location));
     glUniform1f(glGetUniformLocation(g_volume_program, "sampling_distance"), g_sampling_distance);
+    glUniform1f(glGetUniformLocation(g_volume_program, "g_sampling_distance_ref"), g_sampling_distance_ref);
     glUniform1f(glGetUniformLocation(g_volume_program, "iso_value"), g_iso_value);
     glUniform3fv(glGetUniformLocation(g_volume_program, "max_bounds"), 1,
         glm::value_ptr(g_max_volume_bounds));
