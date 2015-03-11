@@ -61,7 +61,7 @@ glm::ivec3 Volume_loader_raw::get_dimensions(const std::string filepath) const
     width = std::atoi(token.c_str());
   }
 
-  p0 = filepath.find("_h", 0) + 2;
+  p0 = filepath.find("_h", p0) + 2;
   p1 = filepath.find("_d", p0);
 
   if (p1 != p0) {
@@ -69,7 +69,7 @@ glm::ivec3 Volume_loader_raw::get_dimensions(const std::string filepath) const
     height = std::atoi(token.c_str());
   }
 
-  p0 = filepath.find("_d", 0) + 2;
+  p0 = filepath.find("_d", p0) + 2;
   p1 = filepath.find("_c", p0);
 
   if (p1 != p0) {
