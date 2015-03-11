@@ -660,7 +660,7 @@ void showGUI(){
         ImGui::Text("Volumes");
         load_volume_1 ^= ImGui::Button("Load Volume Head");
         load_volume_2 ^= ImGui::Button("Load Volume Engine");
-        //load_volume_3 ^= ImGui::Button("Load Volume 3");
+        load_volume_3 ^= ImGui::Button("Load Volume Bucky");
         
         
         if (load_volume_1){
@@ -669,6 +669,10 @@ void showGUI(){
         }
         if (load_volume_2){
             g_file_string = "../../../data/Engine_w256_h256_d256_c1_b8.raw";
+            read_volume(g_file_string);
+        }
+        if (load_volume_2){
+            g_file_string = "../../../data/Bucky_uncertainty_data_w32_h32_d32_c1_b8.raw";
             read_volume(g_file_string);
         }
     }
