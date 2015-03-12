@@ -7276,7 +7276,7 @@ void ImGui::ShowTestWindow(bool* opened)
         }
 
         float a = 0.0;        
-        for (auto i = values.begin(); i != values.end(); ++i){
+        for (ImVector<float>::iterator i = values.begin(); i != values.end(); ++i){
             a += *i;
         }
 
