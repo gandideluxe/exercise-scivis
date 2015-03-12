@@ -514,6 +514,9 @@ void showGUI(){
 
     if (ImGui::CollapsingHeader("Transfer Function"))
     {
+
+        g_show_transfer_function = true;
+
         if (g_show_transfer_function_in_window){
             g_show_transfer_function_in_window ^= ImGui::Button("Dock");
         }
@@ -701,6 +704,7 @@ void showGUI(){
             ImGui::End();
         }
     }
+    else{ g_show_transfer_function = false; }
 
     if (ImGui::CollapsingHeader("Load Volumes", 0, true, false))
     {
@@ -1077,8 +1081,8 @@ int main(int argc, char* argv[])
         glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
         ImGui::Render();
         //IMGUI ROUTINE end
-
-        g_transfer_fun.draw_texture(g_transfer_function_pos, g_transfer_function_size, g_transfer_texture);
+        if (g_show_transfer_function)
+            g_transfer_fun.draw_texture(g_transfer_function_pos, g_transfer_function_size, g_transfer_texture);
 
         g_win.update();
 
