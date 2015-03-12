@@ -93,6 +93,15 @@ Transfer_function::add(unsigned data_value, glm::vec4 color)
   m_piecewise_container.insert(element_type(data_value, color));
 }
 
+void
+Transfer_function::remove(unsigned data_value)
+{
+    helper::clamp(data_value, 0u, 255u);
+
+    //m_piecewise_container.insert(element_type(data_value, color));
+    m_piecewise_container.erase(data_value);
+}
+
 image_data_type Transfer_function::get_RGBA_transfer_function_buffer() const
 {
   size_t buffer_size = 255 * 4; // width =255 height = 1 channels = 4 ///TODO: maybe dont hardcode?

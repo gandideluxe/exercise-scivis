@@ -136,6 +136,7 @@ std::string g_error_message;
 bool g_reload_shader_error = false;
 
 Transfer_function g_transfer_fun;
+unsigned g_last_added_val_to_tf = 0u;
 GLuint g_transfer_texture;
 bool g_transfer_dirty = true;
 bool g_redraw_tf = true;
@@ -579,6 +580,8 @@ void showGUI(){
 
         bool add_entry_to_tf = false;
         add_entry_to_tf ^= ImGui::Button("Add entry"); ImGui::SameLine();
+        bool delete_entry_from_tf = false;
+        delete_entry_from_tf ^= ImGui::Button("Delete last new entry"); ImGui::SameLine();
         bool reset_tf = false;
         reset_tf ^= ImGui::Button("Reset");
 
@@ -589,7 +592,14 @@ void showGUI(){
         }
 
         if (add_entry_to_tf){
+            g_last_added_val_to_tf = data_value;
             g_transfer_fun.add((unsigned)data_value, glm::vec4(col[0], col[1], col[2], col[3]));
+            g_transfer_dirty = true;
+            g_redraw_tf = true;
+        }
+
+        if (delete_entry_from_tf){
+            g_transfer_fun.remove(g_last_added_val_to_tf);
             g_transfer_dirty = true;
             g_redraw_tf = true;
         }

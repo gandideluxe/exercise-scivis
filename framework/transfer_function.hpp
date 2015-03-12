@@ -26,6 +26,8 @@ public:
 
   void add(float, glm::vec4);
   void add(unsigned, glm::vec4);
+    
+  void remove(unsigned);
 
   void reset();
 
