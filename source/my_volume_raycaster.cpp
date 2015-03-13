@@ -269,7 +269,7 @@ bool read_volume(std::string& volume_string){
     g_channel_count = g_volume_loader.get_channel_count(g_file_string);
 
     glActiveTexture(GL_TEXTURE0);
-    g_volume_texture = createTexture3D(g_vol_dimensions.x, g_vol_dimensions.y, g_vol_dimensions.z, g_channel_size, g_channel_size, (char*)&g_volume_data[0]);
+    g_volume_texture = createTexture3D(g_vol_dimensions.x, g_vol_dimensions.y, g_vol_dimensions.z, g_channel_size, g_channel_count, (char*)&g_volume_data[0]);
 
     return g_volume_texture;
 
