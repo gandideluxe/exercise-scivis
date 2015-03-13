@@ -630,11 +630,13 @@ void showGUI(){
                 change_value ^= ImGui::SliderInt(std::to_string(i).c_str(), &g_c_data_value[i], 0, 255); ImGui::SameLine();
 
                 if (change_value){
-                    g_transfer_fun.remove(c_data_value);
-                    g_transfer_fun.add((unsigned)g_c_data_value[i], c_color_value);
-                    g_current_tf_data_value = g_c_data_value[i];
-                    g_transfer_dirty = true;
-                    g_redraw_tf = true;
+                    if (con.find(g_c_data_value[i]) == con.end()){
+                        g_transfer_fun.remove(c_data_value);
+                        g_transfer_fun.add((unsigned)g_c_data_value[i], c_color_value);
+                        g_current_tf_data_value = g_c_data_value[i];
+                        g_transfer_dirty = true;
+                        g_redraw_tf = true;
+                    }
                 }
 
                 //delete             
