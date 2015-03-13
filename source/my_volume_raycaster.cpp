@@ -136,7 +136,7 @@ std::string g_error_message;
 bool g_reload_shader_error = false;
 
 Transfer_function g_transfer_fun;
-unsigned g_last_added_val_to_tf = 0u;
+int g_current_tf_data_value = 0;
 GLuint g_transfer_texture;
 bool g_transfer_dirty = true;
 bool g_redraw_tf = true;
@@ -526,16 +526,8 @@ void showGUI(){
 
         if (g_show_transfer_function_in_window){
             ImGui::Begin("Transfer Function", &g_show_transfer_function_in_window);
-
-            std::stringstream ss;
-            ss << "x: " << ImGui::GetWindowPos().x << " y: " << ImGui::GetWindowPos().y << std::endl;
-            ImGui::Text(ss.str().c_str());
         }
 
-
-        std::stringstream ss;
-        ss << "x: " << ImGui::GetItemBoxMin().x << " y: " << ImGui::GetItemBoxMin().y << std::endl;
-        ImGui::Text(ss.str().c_str());
         g_transfer_function_pos.x = ImGui::GetItemBoxMin().x;
         g_transfer_function_pos.y = ImGui::GetItemBoxMin().y;
 
@@ -580,11 +572,10 @@ void showGUI(){
         ImGui::SliderInt("Data Value", &data_value, 0, 255);
         static float col[4] = { 0.4f, 0.7f, 0.0f, 0.5f };
         ImGui::ColorEdit4("color", col);
-
         bool add_entry_to_tf = false;
         add_entry_to_tf ^= ImGui::Button("Add entry"); ImGui::SameLine();
-        bool delete_entry_from_tf = false;
-        delete_entry_from_tf ^= ImGui::Button("Delete last new entry"); ImGui::SameLine();
+        
+        //delete_entry_from_tf ^= ImGui::Button("Delete entry"); ImGui::SameLine();
         bool reset_tf = false;
         reset_tf ^= ImGui::Button("Reset");
 
@@ -595,16 +586,85 @@ void showGUI(){
         }
 
         if (add_entry_to_tf){
-            g_last_added_val_to_tf = data_value;
+            g_current_tf_data_value = data_value;
             g_transfer_fun.add((unsigned)data_value, glm::vec4(col[0], col[1], col[2], col[3]));
             g_transfer_dirty = true;
             g_redraw_tf = true;
         }
 
-        if (delete_entry_from_tf){
-            g_transfer_fun.remove(g_last_added_val_to_tf);
-            g_transfer_dirty = true;
-            g_redraw_tf = true;
+        if (ImGui::CollapsingHeader("Manipulate Values")){
+
+
+            Transfer_function::container_type con = g_transfer_fun.get_piecewise_container();
+        
+            bool delete_entry_from_tf = false;
+
+            static std::vector<int> g_c_data_value;
+        
+            if (g_c_data_value.size() != con.size())
+                g_c_data_value.resize(con.size());
+
+            int i = 0;
+
+            for (Transfer_function::container_type::iterator c = con.begin(); c != con.end(); ++c)
+            {
+          
+                int c_data_value = c->first;
+                glm::vec4 c_color_value = c->second;
+
+                g_c_data_value[i] = c_data_value;
+
+                std::stringstream ss;
+                if (c->first < 10)
+                    ss /*<< "Delete: " */<< c->first << "  ";// << " R:" << c->second.r << " G:" << c->second.g << " B:" << c->second.b << std::endl;
+                else if (c->first < 100)
+                    ss /*<< "Delete: " */<< c->first << " ";// << " R:" << c->second.r << " G:" << c->second.g << " B:" << c->second.b << std::endl;
+                else            
+                    ss /*<< "Delete: " */<< c->first;// << " R:" << c->second.r << " G:" << c->second.g << " B:" << c->second.b << std::endl;
+                //ImGui::TextColored(ImVec4(c->second.r, c->second.g, c->second.b, 1.0f), ss.str().c_str());  
+            
+                //ImGui::ColorButton(ImVec4(c_color_value.r, c_color_value.g, c_color_value.b, 1.0f), ss.str().c_str());
+                //ImGui::SameLine();
+            
+                bool change_value = false;
+                change_value ^= ImGui::SliderInt(std::to_string(i).c_str(), &g_c_data_value[i], 0, 255); ImGui::SameLine();
+
+                if (change_value){
+                    g_transfer_fun.remove(c_data_value);
+                    g_transfer_fun.add((unsigned)g_c_data_value[i], c_color_value);
+                    g_current_tf_data_value = g_c_data_value[i];
+                    g_transfer_dirty = true;
+                    g_redraw_tf = true;
+                }
+
+                //delete             
+                bool delete_entry_from_tf = false;
+                delete_entry_from_tf ^= ImGui::Button(std::string("Delete: ").append(ss.str()).c_str());
+
+                if (delete_entry_from_tf){
+                    g_current_tf_data_value = c_data_value;
+                    g_transfer_fun.remove(g_current_tf_data_value);
+                    g_transfer_dirty = true;
+                    g_redraw_tf = true;
+                }
+
+                static float n_col[4] = { 0.4f, 0.7f, 0.0f, 0.5f };
+                memcpy(&n_col, &c_color_value, sizeof(float)* 4);
+            
+                bool change_color = false;
+                change_color ^= ImGui::ColorEdit4(ss.str().c_str(), n_col);
+
+                if (change_color){                
+                    g_transfer_fun.add((unsigned)g_c_data_value[i], glm::vec4(n_col[0], n_col[1], n_col[2], n_col[3]));
+                    g_current_tf_data_value = g_c_data_value[i];
+                    g_transfer_dirty = true;
+                    g_redraw_tf = true;
+                }
+
+                ImGui::Separator();
+
+                ++i;
+            }
         }
 
         if (ImGui::CollapsingHeader("Transfer Function - Save/Load", 0, true, false))
