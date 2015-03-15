@@ -109,7 +109,7 @@ GLuint loadShaders(
     index = f.find("#define ENABLE_SHADOWING");
     f.replace(index + 25, 1, ss4.str());
 
-    std::cout << f << std::endl;
+    //std::cout << f << std::endl;
 
     return createProgram(v, f);
 }
