@@ -42,6 +42,7 @@ get_sample_data(vec3 in_sampling_pos){
 #define TASK 21  // 21 22 31 32 33 4 5
 #define ENABLE_OPACITY_CORRECTION 0
 #define ENABLE_LIGHTNING 0
+#define ENABLE_SHADOWING 0
 void main()
 {
     /// One step trough the volume
@@ -124,7 +125,10 @@ void main()
         IMPLEMENT;
 #endif
 #if ENABLE_LIGHTNING == 1 // Add Shading
-        IMPLEMENT;
+        IMPLEMENTLIGHT;
+#if ENABLE_SHADOWING == 1 // Add Shadows
+        IMPLEMENTSHADOW;
+#endif
 #endif
 
         // update the loop termination condition

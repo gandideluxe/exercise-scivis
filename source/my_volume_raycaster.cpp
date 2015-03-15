@@ -79,6 +79,7 @@ GLuint loadShaders(
     std::string const& fs,
     const int task_nbr,
     const int enable_lightning,
+    const int enable_shadowing,
     const int enable_opeacity_cor)
 {
     std::string v = readFile(vs);
@@ -102,7 +103,13 @@ GLuint loadShaders(
     index = f.find("#define ENABLE_LIGHTNING");
     f.replace(index + 25, 1, ss3.str());
 
-    //std::cout << f << std::endl;
+    std::stringstream ss4;
+    ss4 << enable_shadowing;
+
+    index = f.find("#define ENABLE_SHADOWING");
+    f.replace(index + 25, 1, ss4.str());
+
+    std::cout << f << std::endl;
 
     return createProgram(v, f);
 }
@@ -141,6 +148,7 @@ GLuint g_transfer_texture;
 bool g_transfer_dirty = true;
 bool g_redraw_tf = true;
 bool g_lighting_toggle = false;
+bool g_shadow_toggle = false;
 bool g_opacity_correction_toggle = false;
 
 // imgui variables
@@ -498,14 +506,20 @@ void showGUI(){
         ImGui::RadioButton("Max Intensity Projection", &g_task_chosen, 21);
         ImGui::RadioButton("Average Intensity Projection", &g_task_chosen, 22);
         ImGui::Text("Iso Surface Rendering");
-        ImGui::SliderFloat("Iso Value", &g_iso_value, 0.0f, 1.0f, "%.8f", 1.0f);
         ImGui::RadioButton("Inaccurate", &g_task_chosen, 31);
         ImGui::RadioButton("Binary Search", &g_task_chosen, 32);
+        ImGui::SliderFloat("Iso Value", &g_iso_value, 0.0f, 1.0f, "%.8f", 1.0f);
         ImGui::Text("Direct Volume Rendering");
         ImGui::RadioButton("Compositing", &g_task_chosen, 41);
-        g_reload_shader ^= ImGui::Checkbox("Enable Lightning", &g_lighting_toggle);
-        g_reload_shader ^= ImGui::Checkbox("Opacity Correction", &g_opacity_correction_toggle);
+        g_reload_shader ^= ImGui::Checkbox("1", &g_lighting_toggle); ImGui::SameLine();
+        g_task_chosen == 41 || g_task_chosen == 31 || g_task_chosen == 32 ? ImGui::Text("Enable Lightning") : ImGui::TextColored(ImVec4(0.2f, 0.2f, 0.2f, 0.5f), "Enable Lightning");
 
+        g_reload_shader ^= ImGui::Checkbox("2", &g_shadow_toggle); ImGui::SameLine();
+        g_task_chosen == 41 || g_task_chosen == 31 || g_task_chosen == 32 ? ImGui::Text("Enable Shadows") : ImGui::TextColored(ImVec4(0.2f, 0.2f, 0.2f, 0.5f), "Enable Shadows");
+
+        g_reload_shader ^= ImGui::Checkbox("3", &g_opacity_correction_toggle); ImGui::SameLine();        
+        g_task_chosen == 41 ? ImGui::Text("Opacity Correction") : ImGui::TextColored(ImVec4(0.2f, 0.2f, 0.2f, 0.5f), "Opacity Correction");
+                
         if (g_task_chosen != g_task_chosen_old){
             g_reload_shader = true;
             g_task_chosen_old = g_task_chosen;
@@ -880,6 +894,7 @@ int main(int argc, char* argv[])
         g_volume_program = loadShaders(g_file_vertex_shader, g_file_fragment_shader,
             g_task_chosen,
             g_lighting_toggle,
+            g_shadow_toggle,
             g_opacity_correction_toggle);
     }
     catch (std::logic_error& e) {
@@ -954,7 +969,7 @@ int main(int argc, char* argv[])
             GLuint newProgram(0);
             try {
                 //std::cout << "Reload shaders" << std::endl;
-                newProgram = loadShaders(g_file_vertex_shader, g_file_fragment_shader, g_task_chosen, g_lighting_toggle, g_opacity_correction_toggle);
+                newProgram = loadShaders(g_file_vertex_shader, g_file_fragment_shader, g_task_chosen, g_lighting_toggle, g_shadow_toggle, g_opacity_correction_toggle);
                 g_error_message = "";
             }
             catch (std::logic_error& e) {
