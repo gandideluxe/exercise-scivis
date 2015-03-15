@@ -1101,16 +1101,10 @@ int main(int argc, char* argv[])
             glm::value_ptr(g_max_volume_bounds));
         glUniform3iv(glGetUniformLocation(g_volume_program, "volume_dimensions"), 1,
             glm::value_ptr(g_vol_dimensions));
-
         glUniform3fv(glGetUniformLocation(g_volume_program, "light_position"), 1,
-            //glm::value_ptr(glm::vec3(light_location.x, light_location.y, light_location.z)));
             glm::value_ptr(g_light_pos));
         glUniform3fv(glGetUniformLocation(g_volume_program, "light_color"), 1,
             glm::value_ptr(g_light_color));
-
-        glUniform3fv(glGetUniformLocation(g_volume_program, "light_color"), 1,
-            glm::value_ptr(g_light_color));
-
         glUniformMatrix4fv(glGetUniformLocation(g_volume_program, "Projection"), 1, GL_FALSE,
             glm::value_ptr(projection));
         glUniformMatrix4fv(glGetUniformLocation(g_volume_program, "Modelview"), 1, GL_FALSE,

@@ -2,6 +2,11 @@
 #extension GL_ARB_shading_language_420pack : require
 #extension GL_ARB_explicit_attrib_location : require
 
+#define TASK 21  // 21 22 31 32 33 4 5
+#define ENABLE_OPACITY_CORRECTION 0
+#define ENABLE_LIGHTNING 0
+#define ENABLE_SHADOWING 0
+
 in vec3 ray_entry_position;
 
 layout(location = 0) out vec4 FragColor;
@@ -39,10 +44,6 @@ get_sample_data(vec3 in_sampling_pos){
 
 }
 
-#define TASK 21  // 21 22 31 32 33 4 5
-#define ENABLE_OPACITY_CORRECTION 0
-#define ENABLE_LIGHTNING 0
-#define ENABLE_SHADOWING 0
 void main()
 {
     /// One step trough the volume
