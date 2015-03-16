@@ -25,7 +25,10 @@ uniform vec3    max_bounds;
 uniform ivec3   volume_dimensions;
 
 uniform vec3    light_position;
-uniform vec3    light_color;
+uniform vec3    light_ambient_color;
+uniform vec3    light_diffuse_color;
+uniform vec3    light_specular_color;
+uniform float   light_ref_coef;
 
 
 bool
@@ -118,7 +121,7 @@ void main()
         float s = get_sample_data(sampling_pos);
 
         // dummy code
-        dst = vec4(0.0, 1.0, 0.0, 1.0);
+        dst = vec4(light_diffuse_color, 1.0);
 
         // increment the ray sampling position
         sampling_pos += ray_increment;
@@ -150,7 +153,7 @@ void main()
         float s = get_sample_data(sampling_pos);
 #endif
         // dummy code
-        dst = vec4(0.0, 0.0, 1.0, 1.0);
+        dst = vec4(light_specular_color, 1.0);
 
         // increment the ray sampling position
         sampling_pos += ray_increment;

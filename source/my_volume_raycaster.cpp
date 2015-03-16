@@ -127,8 +127,12 @@ float       g_sampling_distance_ref = 0.001f;
 float       g_iso_value = 0.2f;
 
 // set the light position and color for shading
-glm::vec3   g_light_pos = glm::vec3(1.0, 1.0, 1.0);
-glm::vec3   g_light_color = glm::vec3(1.0f, 1.0f, 1.0f);
+// set the light position and color for shading
+glm::vec3   g_light_pos = glm::vec3(10.0, 10.0, 10.0);
+glm::vec3   g_ambient_light_color = glm::vec3(0.1f, 0.1f, 0.1f);
+glm::vec3   g_diffuse_light_color = glm::vec3(0.2f, 0.2f, 0.2f);
+glm::vec3   g_specula_light_color = glm::vec3(0.2f, 0.2f, 0.2f);
+float       g_ref_coef = 12.0;
 
 // set backgorund color here
 //glm::vec3   g_background_color = glm::vec3(1.0f, 1.0f, 1.0f); //white
@@ -555,6 +559,19 @@ void showGUI(){
         }
     }
 
+
+    if (ImGui::CollapsingHeader("Lighting Settings"))
+    {
+        ImGui::SliderFloat3("Position Light", &g_light_pos[0], -10.0f, 10.0f);
+
+        ImGui::ColorEdit3("Ambient Color", &g_ambient_light_color[0]);
+        ImGui::ColorEdit3("Diffuse Color", &g_diffuse_light_color[0]);
+        ImGui::ColorEdit3("Specular Color", &g_specula_light_color[0]);
+
+        ImGui::SliderFloat("Reflection Coefficient kd", &g_ref_coef, 0.0f, 20.0f, "%.5f", 1.0f);
+
+
+    }
 
     if (ImGui::CollapsingHeader("Quality Settings"))
     {
@@ -1103,8 +1120,14 @@ int main(int argc, char* argv[])
             glm::value_ptr(g_vol_dimensions));
         glUniform3fv(glGetUniformLocation(g_volume_program, "light_position"), 1,
             glm::value_ptr(g_light_pos));
-        glUniform3fv(glGetUniformLocation(g_volume_program, "light_color"), 1,
-            glm::value_ptr(g_light_color));
+        glUniform3fv(glGetUniformLocation(g_volume_program, "light_ambient_color"), 1,
+            glm::value_ptr(g_ambient_light_color));
+        glUniform3fv(glGetUniformLocation(g_volume_program, "light_diffuse_color"), 1,
+            glm::value_ptr(g_diffuse_light_color));
+        glUniform3fv(glGetUniformLocation(g_volume_program, "light_specular_color"), 1,
+            glm::value_ptr(g_specula_light_color));
+        glUniform1f(glGetUniformLocation(g_volume_program, "light_ref_coef"), g_ref_coef);
+
         glUniformMatrix4fv(glGetUniformLocation(g_volume_program, "Projection"), 1, GL_FALSE,
             glm::value_ptr(projection));
         glUniformMatrix4fv(glGetUniformLocation(g_volume_program, "Modelview"), 1, GL_FALSE,
