@@ -91,7 +91,7 @@ void main()
 #endif 
     
 #if TASK == 22
-    
+
     // the traversal loop,
     // termination when the sampling position is outside volume boundarys
     // another termination condition for early ray termination is added
@@ -101,7 +101,7 @@ void main()
         float s = get_sample_data(sampling_pos);
 
         // dummy code
-        dst = vec4(1.0, 0.0, 0.0, 1.0);
+        dst = vec4(sampling_pos, 1.0);
         
         // increment the ray sampling position
         sampling_pos  += ray_increment;

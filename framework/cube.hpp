@@ -36,6 +36,7 @@ public:
   Cube();
   Cube(glm::vec3 min, glm::vec3 max);
   void draw() const;
+  void freeVAO();
 
 private:
   unsigned int m_vao;

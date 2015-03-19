@@ -21,7 +21,7 @@
 #include <stdexcept>
 #include <cmath>
 
-///GLM INCLUDES
+         ///GLM INCLUDES
 #define GLM_FORCE_RADIANS
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -29,7 +29,7 @@
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/norm.hpp>
 
-///PROJECT INCLUDES
+         ///PROJECT INCLUDES
 #include <volume_loader_raw.hpp>
 #include <transfer_function.hpp>
 #include <utils.hpp>
@@ -39,14 +39,14 @@
 #include <stb_image.h>        // stb_image.h for PNG loading
 #define OFFSETOF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
 
-//-----------------------------------------------------------------------------
-// Helpers
-//-----------------------------------------------------------------------------
+         //-----------------------------------------------------------------------------
+         // Helpers
+         //-----------------------------------------------------------------------------
 
 #define IM_ARRAYSIZE(_ARR)          ((int)(sizeof(_ARR)/sizeof(*_ARR)))
 
 #undef PI
-const float PI = 3.14159265358979323846f;
+         const float PI = 3.14159265358979323846f;
 
 #ifdef INT_MAX
 #define IM_INT_MAX INT_MAX
@@ -178,7 +178,6 @@ bool g_over_gui = false;
 bool g_reload_shader = false;
 bool g_reload_shader_pressed = false;
 bool g_show_transfer_function = false;
-bool g_show_transfer_function_pressed = false;
 
 int g_task_chosen = 21;
 int g_task_chosen_old = g_task_chosen;
@@ -192,6 +191,7 @@ glm::vec3 g_max_volume_bounds;
 unsigned g_channel_size = 0;
 unsigned g_channel_count = 0;
 GLuint g_volume_texture = 0;
+Cube g_cube;
 
 int g_bilinear_interpolation = true;
 
@@ -279,6 +279,10 @@ bool read_volume(std::string& volume_string){
     g_volume_data = g_volume_loader.load_volume(g_file_string);
     g_channel_size = g_volume_loader.get_bit_per_channel(g_file_string) / 8;
     g_channel_count = g_volume_loader.get_channel_count(g_file_string);
+
+    // setting up proxy geometry
+    g_cube.freeVAO();
+    g_cube = Cube(glm::vec3(0.0, 0.0, 0.0), g_max_volume_bounds);
 
     glActiveTexture(GL_TEXTURE0);
     g_volume_texture = createTexture3D(g_vol_dimensions.x, g_vol_dimensions.y, g_vol_dimensions.z, g_channel_size, g_channel_count, (char*)&g_volume_data[0]);
@@ -521,9 +525,9 @@ void showGUI(){
         g_reload_shader ^= ImGui::Checkbox("2", &g_shadow_toggle); ImGui::SameLine();
         g_task_chosen == 41 || g_task_chosen == 31 || g_task_chosen == 32 ? ImGui::Text("Enable Shadows") : ImGui::TextColored(ImVec4(0.2f, 0.2f, 0.2f, 0.5f), "Enable Shadows");
 
-        g_reload_shader ^= ImGui::Checkbox("3", &g_opacity_correction_toggle); ImGui::SameLine();        
+        g_reload_shader ^= ImGui::Checkbox("3", &g_opacity_correction_toggle); ImGui::SameLine();
         g_task_chosen == 41 ? ImGui::Text("Opacity Correction") : ImGui::TextColored(ImVec4(0.2f, 0.2f, 0.2f, 0.5f), "Opacity Correction");
-                
+
         if (g_task_chosen != g_task_chosen_old){
             g_reload_shader = true;
             g_task_chosen_old = g_task_chosen;
@@ -895,11 +899,6 @@ int main(int argc, char* argv[])
     glActiveTexture(GL_TEXTURE1);
     g_transfer_texture = createTexture2D(255u, 1u, (char*)&g_transfer_fun.get_RGBA_transfer_function_buffer()[0]);
 
-
-
-    // setting up proxy geometry
-    Cube cube(glm::vec3(0.0, 0.0, 0.0), g_max_volume_bounds);
-
     // loading actual raytracing shader code (volume.vert, volume.frag)
     // edit volume.frag to define the result of our volume raycaster  
     try {
@@ -1020,18 +1019,6 @@ int main(int argc, char* argv[])
         }
 
 
-
-        /// show transfer function if T is pressed
-        if (g_win.isKeyPressed(GLFW_KEY_T)){
-            if (!g_show_transfer_function_pressed){
-                g_show_transfer_function = !g_show_transfer_function;
-            }
-            g_show_transfer_function_pressed = true;
-        }
-        else {
-            g_show_transfer_function_pressed = false;
-        }
-
         if (g_transfer_dirty){
             g_transfer_dirty = false;
 
@@ -1128,7 +1115,7 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(glGetUniformLocation(g_volume_program, "Modelview"), 1, GL_FALSE,
             glm::value_ptr(model_view));
         if (!g_pause)
-            cube.draw();
+            g_cube.draw();
         glUseProgram(0);
 
         //IMGUI ROUTINE begin    

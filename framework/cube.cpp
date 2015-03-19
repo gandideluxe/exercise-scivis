@@ -173,3 +173,10 @@ void Cube::draw() const
   glDrawArrays(GL_TRIANGLES, 0, 36);
   glBindVertexArray(0);
 }
+
+
+void Cube::freeVAO()
+{
+    glDeleteVertexArrays(1, &m_vao);
+}
+
